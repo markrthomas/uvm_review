@@ -84,7 +84,7 @@ waves:
 # SystemVerilog UVM testbench (mirrors the PyUVM TB). Needs a UVM-capable
 # commercial simulator; degrades gracefully (skip, exit 0) when none is present.
 uvm:
-	$(MAKE) -C $(UVM_DIR) $(if $(TEST),TEST=$(TEST),) $(if $(WAVES),WAVES=$(WAVES),)
+	$(MAKE) -C $(UVM_DIR) $(if $(TEST),TEST=$(TEST),) $(if $(WAVES),WAVES=$(WAVES),) $(if $(SINGLE),SINGLE=$(SINGLE),)
 
 # --- gates -------------------------------------------------------------------
 

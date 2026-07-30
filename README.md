@@ -62,6 +62,11 @@ SystemVerilog/UVM simulator license**, so `make uvm` degrades gracefully — it
 detects VCS / Xcelium / Questa and, finding none, prints a skip and exits 0. On
 a licensed host it runs for real (`make uvm TEST=apb_random_test`).
 
+It ships in two equivalent layouts: the multi-file set (default) and a single
+self-contained file, `apb_tb_single.sv`, for drop-in use (e.g. EDA Playground).
+Build the single-file variant with `make uvm SINGLE=1` (or `make single` inside
+`uvm/`). The two share the same names — compile one or the other, never both.
+
 | PyUVM (`tb/`)               | SystemVerilog UVM (`uvm/`)                       |
 |-----------------------------|-------------------------------------------------|
 | `apb_bfm.py` (cocotb BFM)   | `apb_if.sv` + driver/monitor virtual interface  |
