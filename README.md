@@ -85,6 +85,47 @@ UVM flow — the Icarus/cocotb simulator's SVA support is too weak to carry it.
 | `ApbEnv`                    | `apb_env.sv`                                   |
 | tests + `@cocotb.test`      | `apb_test.sv` + `apb_tb_top.sv` (`run_test`)   |
 
+## Testbench block diagram
+
+Both testbenches share the same UVM structure (the PyUVM and SystemVerilog
+class names differ but map one-for-one per the table above). A sequence hands
+transactions to the sequencer; the driver turns them into APB pin wiggles; the
+monitor observes completed transfers and forwards them to the scoreboard, which
+scores every read against a reference byte model. In the SV flow the `apb_sva`
+checker is `bind`-ed onto the DUT and watches the same pins for protocol
+violations.
+
+```mermaid
+flowchart TB
+    SEQ["Sequence<br/>write-read · random · walking"]
+
+    subgraph TEST["uvm_test — builds env, drives reset, starts the sequence"]
+        direction TB
+        subgraph ENV["uvm_env"]
+            direction TB
+            subgraph AGENT["uvm_agent (active)"]
+                direction TB
+                SEQR["Sequencer"]
+                DRV["Driver"]
+                MON["Monitor"]
+            end
+            SB["Scoreboard<br/>reference byte model<br/>checks read == last write"]
+        end
+    end
+
+    IF["APB interface / cocotb BFM<br/>(virtual interface)"]
+    DUT["apb_mem<br/>(DUT)"]
+    SVA["apb_sva<br/>bound assertions<br/>(SV flow only)"]
+
+    SEQ -->|"seq items"| SEQR
+    SEQR -->|"next item"| DRV
+    DRV -->|"drive SETUP / ACCESS"| IF
+    IF <-->|"PSEL · PENABLE · PWRITE · PADDR · PWDATA / PRDATA · PREADY"| DUT
+    IF -->|"sample completed transfer"| MON
+    MON -->|"analysis port"| SB
+    DUT -.->|"bind"| SVA
+```
+
 ## Verification
 
 Everything runs from the repo root and degrades gracefully if a tool is absent.
@@ -103,6 +144,131 @@ Everything runs from the repo root and degrades gracefully if a tool is absent.
 | SV UVM          | `make uvm`             | SystemVerilog UVM TB (VCS/Xcelium/Questa); skips cleanly if unlicensed. |
 
 Run `make help` for the full target list.
+
+## Tutorial
+
+A step-by-step walk-through, from a clean checkout to extending the testbench.
+Every command is run from the repo root unless noted.
+
+### 1. Check the toolchain
+
+The runnable flow needs Icarus Verilog and a Python with cocotb + pyuvm:
+
+```bash
+iverilog -V | head -1          # expect Icarus Verilog version 11.x
+python3 -c "import cocotb, pyuvm; print(cocotb.__version__, pyuvm.__version__)"
+```
+
+If `python3` is missing the packages: `python3 -m pip install cocotb==1.9.2 pyuvm==4.0.1`.
+Verilator is optional — it powers RTL lint and the coverage harness, and every
+target that uses it degrades gracefully (prints a skip, exits 0) when it is
+absent.
+
+### 2. Run the whole regression
+
+```bash
+make test
+```
+
+This delegates to `tb/Makefile`, which compiles `rtl/apb_mem.sv` with Icarus and
+runs all three cocotb tests. Expect three `PASS` lines and a zero exit code:
+
+```
+** TEST                          STATUS  SIM TIME (ns) ...
+** apb_test.write_read_test      PASS   ...
+** apb_test.random_test          PASS   ...
+** apb_test.walking_test         PASS   ...
+```
+
+Each test builds the environment, pulses reset via the BFM, runs its sequence,
+and the scoreboard asserts `errors == 0` in its check phase.
+
+### 3. Run a single test
+
+Pick one directed scenario while iterating:
+
+```bash
+make test-write-read     # write a byte, read it back from the same address
+make test-random         # 64 constrained-random reads/writes
+make test-walking        # first/last address × all-0 / all-1 / patterned data
+```
+
+Under the hood each sets `TESTCASE=<name>` for the cocotb runner.
+
+### 4. Inspect waveforms
+
+```bash
+make waves               # runs the suite and writes tb/sim_build/apb_mem.fst
+gtkwave tb/sim_build/apb_mem.fst
+```
+
+Look at `PSEL`/`PENABLE` to see the SETUP→ACCESS handshake and `PREADY` held
+high (zero wait states).
+
+### 5. Measure coverage
+
+```bash
+make coverage
+```
+
+This builds `rtl/apb_mem.sv` with Verilator `--coverage`, runs the C++ harness
+in `sim/sim_main.cpp`, exports lcov to `sim/coverage.info`, and enforces a line
+floor (`COV_MIN`, default 100). Lower the bar for a quick look with
+`make coverage COV_MIN=90`.
+
+### 6. Lint and the CI gate
+
+```bash
+make lint                # iverilog -Wall + Verilator RTL lint
+make ci                  # lint + full regression + coverage, one pass/fail gate
+```
+
+`make ci` is the single command a CI job would run.
+
+### 7. The SystemVerilog UVM testbench
+
+```bash
+make uvm                       # multi-file set, default write-read test
+make uvm TEST=apb_random_test  # pick a test
+make uvm SINGLE=1              # build the single-file variant instead
+```
+
+On this host (no UVM simulator licensed) `make uvm` prints a skip and exits 0.
+On a licensed host it auto-detects VCS / Xcelium / Questa, elaborates the DUT +
+interface + UVM package + the bound `apb_sva` checker, and runs
+`+UVM_TESTNAME=<TEST>`. The `apb_tb_single.sv` variant (or the two-pane
+design/testbench split it maps to) drops straight into EDA Playground.
+
+### 8. How a transaction flows
+
+Tracing one write-then-read pair through the components (SV names; PyUVM mirrors
+them):
+
+1. **Sequence** (`apb_write_read_seq`) randomizes an `apb_seq_item` with
+   `write == 1` under a constraint, then a second item with `write == 0` and
+   `addr` constrained equal to the write's address.
+2. **Sequencer → Driver**: the driver pulls each item and drives the APB SETUP
+   phase (`PSEL=1, PENABLE=0`) then ACCESS (`PENABLE=1`), sampling `PRDATA` once
+   `PREADY` is high; for reads it writes `PRDATA` back into the item.
+3. **Monitor**: independently samples every completed ACCESS beat and publishes
+   an `apb_seq_item` on its analysis port.
+4. **Scoreboard**: on a write it updates `model[addr]`; on a read it compares
+   `rdata` against `model[addr]` (default 0), counting mismatches and asserting
+   none remain in the check phase.
+5. **Assertions** (`apb_sva`, SV flow): concurrently check the pin-level
+   protocol on every clock — independent of the scoreboard's data check.
+
+### 9. Extend it
+
+- **New stimulus**: add a `uvm_sequence` subclass in `uvm/apb_sequences.sv`
+  (and/or `tb/apb_seq.py`), then a `uvm_test` that overrides `create_seq()` to
+  launch it (Python: set `seq_cls`). Register the SV test with
+  `` `uvm_component_utils `` so `+UVM_TESTNAME` can select it.
+- **Resize the memory**: override the parameters, e.g.
+  `make coverage` after changing `ADDR_WIDTH`/`DATA_WIDTH` defaults in
+  `rtl/apb_mem.sv`; the interface, harness, and TBs pick the widths up.
+- **New assertion**: add a property to `uvm/apb_sva.sv` (and mirror it in the
+  inline copy inside `apb_tb_single.sv`).
 
 ## Toolchain
 
