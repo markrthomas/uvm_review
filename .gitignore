@@ -1,4 +1,7 @@
 NOTES.md
+# editor swap files
+*.swp
+*.swo
 sim_build/
 tb/sim_build/
 __pycache__/
