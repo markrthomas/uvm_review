@@ -36,6 +36,7 @@ flowchart LR
 
 - `rtl/` — the DUT (`apb_mem.sv`)
 - `tb/` — PyUVM testbench and its cocotb runner (`tb/Makefile`)
+- `sim/` — Verilator C++ coverage harness (`sim_main.cpp`)
 - `Makefile` — standard DV gate targets (delegates the cocotb run to `tb/`)
 
 The testbench is layered so only the BFM touches DUT signals:
@@ -63,8 +64,9 @@ Everything runs from the repo root and degrades gracefully if a tool is absent.
 | Walking         | `make test-walking`    | Directed first/last-address and all-0 / all-1 payload edge cases. |
 | Waves           | `make waves`           | Full run dumping `tb/sim_build/apb_mem.fst` (open in GTKWave).    |
 | Lint            | `make lint`            | `iverilog -Wall` compile check + Verilator RTL lint.              |
+| Coverage        | `make coverage`        | Verilator `--coverage` C++ harness → `sim/coverage.info` (lcov); fails below `COV_MIN` (default 100%). |
 | Gate            | `make check`           | Lint then the full regression.                                    |
-| CI              | `make regress` / `make ci` | Lint + regression as a single pass/fail gate.                 |
+| CI              | `make ci`              | Lint + regression + coverage as a single pass/fail gate.          |
 
 Run `make help` for the full target list.
 

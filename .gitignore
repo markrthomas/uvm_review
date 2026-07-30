@@ -6,3 +6,8 @@ results.xml
 *.fst
 *.vcd
 obj_dir/
+sim/obj_dir_cov/
+sim/coverage.info
+sim/coverage.dat
+sim/annotated/
+coverage.dat

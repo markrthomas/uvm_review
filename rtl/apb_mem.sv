@@ -26,7 +26,11 @@ module apb_mem #(
     // APB response channel
     output logic [DATA_WIDTH-1:0] PRDATA,
     output logic                  PREADY,
+    // verilator coverage_off
+    // PSLVERR is a constant tie-off (this slave never errors) -> no logic to
+    // cover; waive its point so `make coverage` can hold a 100% floor.
     output logic                  PSLVERR
+    // verilator coverage_on
 );
 
     localparam int DEPTH = 1 << ADDR_WIDTH; // 32768
