@@ -23,11 +23,13 @@ TOP := apb_tb_top
 RTL := ../rtl/apb_mem.sv
 
 # Multi-file compile order: interface first (referenced by the package's virtual
-# iface), then the DUT, the package, and the top module.
+# iface), then the DUT, the APB assertion checker (bound to the DUT), the
+# package, and the top module.
 SV_IF    := apb_if.sv
+SVA      := apb_sva.sv
 PKG      := apb_pkg.sv
 SV_TOP   := apb_tb_top.sv
-MULTI_SRC := $(SV_IF) $(RTL) $(PKG) $(SV_TOP)
+MULTI_SRC := $(SV_IF) $(RTL) $(SVA) $(PKG) $(SV_TOP)
 
 # Included class files (apb_pkg.sv `include's these; listed for `make clean` /
 # dependency clarity only).

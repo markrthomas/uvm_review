@@ -67,6 +67,14 @@ self-contained file, `apb_tb_single.sv`, for drop-in use (e.g. EDA Playground).
 Build the single-file variant with `make uvm SINGLE=1` (or `make single` inside
 `uvm/`). The two share the same names — compile one or the other, never both.
 
+An APB3 assertion checker, `uvm/apb_sva.sv` (a module `bind`-ed to every
+`apb_mem` instance, inlined in the single-file variant), runs concurrently with
+either layout. It covers the protocol (SETUP→ACCESS handshake, PENABLE
+deassertion, address/data stability, no-X on active signals) and this slave's
+tie-offs (zero-wait `PREADY`, never-error `PSLVERR`, bus-idle-during-reset),
+plus `cover` points for the read and write transactions. It is scoped to the
+UVM flow — the Icarus/cocotb simulator's SVA support is too weak to carry it.
+
 | PyUVM (`tb/`)               | SystemVerilog UVM (`uvm/`)                       |
 |-----------------------------|-------------------------------------------------|
 | `apb_bfm.py` (cocotb BFM)   | `apb_if.sv` + driver/monitor virtual interface  |
