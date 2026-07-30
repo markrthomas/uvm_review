@@ -238,8 +238,34 @@ make uvm SINGLE=1              # build the single-file variant instead
 On this host (no UVM simulator licensed) `make uvm` prints a skip and exits 0.
 On a licensed host it auto-detects VCS / Xcelium / Questa, elaborates the DUT +
 interface + UVM package + the bound `apb_sva` checker, and runs
-`+UVM_TESTNAME=<TEST>`. The `apb_tb_single.sv` variant (or the two-pane
-design/testbench split it maps to) drops straight into EDA Playground.
+`+UVM_TESTNAME=<TEST>`.
+
+**Run it on [EDA Playground](https://www.edaplayground.com)** — the single-file
+variant is built for this. It has a free tier with UVM-capable simulators, so
+you can run the SV/UVM TB without a local license:
+
+1. **Design pane** (left, `design.sv`): paste the contents of `rtl/apb_mem.sv`.
+2. **Testbench pane** (right, `testbench.sv`): paste the contents of
+   `uvm/apb_tb_single.sv`. This one file carries the interface, the UVM package
+   (all components + tests), the top module, and the bound `apb_sva` checker —
+   so nothing else is needed. Do **not** also add the multi-file `uvm/*.sv`
+   pieces; they define the same names and would clash.
+3. In the left sidebar:
+   - **Languages & Libraries → UVM/OVM**: tick **UVM 1.2**.
+   - **Tools & Simulators**: pick a UVM-capable one — Aldec Riviera-Pro,
+     Siemens Questa, Cadence Xcelium, or Synopsys VCS.
+   - **Run options** (optional): the top defaults to the write-read test, so you
+     can leave this empty. To pick another, add
+     `+UVM_TESTNAME=apb_random_test` (or `apb_walking_test`).
+   - For waveforms: tick **Open EPWave after run** and add `+define+DUMP` to the
+     compile options (the top's `` `ifdef DUMP `` guards a `$dumpvars`).
+4. Click **Run**. A healthy log shows the UVM banner, `Running test
+   apb_write_read_test...`, the scoreboard line `N reads checked, 0 errors`, no
+   `UVM_ERROR`/`UVM_FATAL`, and `$finish` at a non-zero time.
+
+> A run that ends at **0 ns** means no test was selected/elaborated — confirm
+> **UVM 1.2** is ticked and, if you set a `+UVM_TESTNAME`, that it's in the
+> **Run options** box (not the compile box) and spelled exactly.
 
 ### 8. How a transaction flows
 
