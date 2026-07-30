@@ -1,5 +1,7 @@
 # apb_mem
 
+[![CI](https://github.com/markrthomas/uvm_review/actions/workflows/ci.yml/badge.svg)](https://github.com/markrthomas/uvm_review/actions/workflows/ci.yml)
+
 APB byte-wide 32K memory RTL with a self-checking PyUVM testbench (runnable
 here) and a mirror SystemVerilog UVM testbench (license-gated).
 
