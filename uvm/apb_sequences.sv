@@ -19,17 +19,18 @@ class apb_write_read_seq extends uvm_sequence #(apb_seq_item);
     task body();
         apb_seq_item wr, rd;
         for (int unsigned i = 0; i < num; i++) begin
-            bit [14:0] a = $urandom_range(0, 15'h7FFF);
-            bit [7:0]  d = $urandom_range(0, 8'hFF);
-
+            // Random write: solver picks addr/data, direction constrained.
             wr = apb_seq_item::type_id::create("wr");
             start_item(wr);
-            wr.addr = a; wr.data = d; wr.write = 1'b1;
+            if (!wr.randomize() with { write == 1'b1; })
+                `uvm_error("RAND", "apb_seq_item randomize failed")
             finish_item(wr);
 
+            // Read back the same address (constrained to the write's addr).
             rd = apb_seq_item::type_id::create("rd");
             start_item(rd);
-            rd.addr = a; rd.write = 1'b0;
+            if (!rd.randomize() with { write == 1'b0; addr == wr.addr; })
+                `uvm_error("RAND", "apb_seq_item randomize failed")
             finish_item(rd);
         end
     endtask

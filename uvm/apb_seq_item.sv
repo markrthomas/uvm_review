@@ -7,8 +7,9 @@
 //   * write — 1 = write, 0 = read
 //   * rdata — captured read data (PRDATA), filled in by the driver on reads
 //
-// do_compare compares the *observable* transfer (direction, address, and the
-// payload relevant to that direction), matching the Python __eq__.
+// convert2string reports the *observable* transfer (direction, address, and
+// the payload relevant to that direction). The `uvm_field_int macros provide
+// copy / compare / print automatically.
 // -----------------------------------------------------------------------------
 class apb_seq_item extends uvm_sequence_item;
 
@@ -31,13 +32,6 @@ class apb_seq_item extends uvm_sequence_item;
     // Payload that actually matters for this direction.
     function bit [7:0] payload();
         return write ? data : rdata;
-    endfunction
-
-    function bit do_compare(uvm_object rhs, uvm_comparer comparer);
-        apb_seq_item o;
-        if (!$cast(o, rhs)) return 0;
-        return (write == o.write) && (addr == o.addr) &&
-               (payload() == o.payload());
     endfunction
 
     function string convert2string();
