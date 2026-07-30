@@ -463,7 +463,9 @@ module apb_tb_top;
 
     initial begin
         uvm_config_db#(virtual apb_if)::set(null, "*", "vif", apb);
-        run_test();   // +UVM_TESTNAME selects the test; default apb_base_test
+        // Default to the write-read test; +UVM_TESTNAME overrides it when given
+        // (so it "just runs" on EDA Playground with no run-option set).
+        run_test("apb_write_read_test");
     end
 
 `ifdef DUMP
