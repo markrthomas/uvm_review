@@ -1,3 +1,4 @@
+NOTES.md
 sim_build/
 tb/sim_build/
 __pycache__/
@@ -11,3 +12,22 @@ sim/coverage.info
 sim/coverage.dat
 sim/annotated/
 coverage.dat
+# SystemVerilog UVM simulator artifacts (uvm/)
+uvm/simv
+uvm/simv.daidir/
+uvm/csrc/
+uvm/*.log
+uvm/ucli.key
+uvm/xcelium.d/
+uvm/xrun.history
+uvm/xrun.log
+uvm/INCA_libs/
+uvm/.simvision/
+uvm/qrun.out/
+uvm/work/
+uvm/modelsim.ini
+uvm/transcript
+uvm/vsim.wlf
+uvm/*.fsdb
+uvm/novas.*
+uvm/verdi*

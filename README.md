@@ -1,6 +1,7 @@
 # apb_mem
 
-APB byte-wide 32K memory RTL with a self-checking PyUVM testbench.
+APB byte-wide 32K memory RTL with a self-checking PyUVM testbench (runnable
+here) and a mirror SystemVerilog UVM testbench (license-gated).
 
 ## Architecture
 
@@ -36,6 +37,7 @@ flowchart LR
 
 - `rtl/` — the DUT (`apb_mem.sv`)
 - `tb/` — PyUVM testbench and its cocotb runner (`tb/Makefile`)
+- `uvm/` — SystemVerilog UVM testbench mirroring the PyUVM TB (`uvm/Makefile`)
 - `sim/` — Verilator C++ coverage harness (`sim_main.cpp`)
 - `Makefile` — standard DV gate targets (delegates the cocotb run to `tb/`)
 
@@ -52,6 +54,24 @@ The testbench is layered so only the BFM touches DUT signals:
 The **scoreboard** keeps a reference byte model and checks every read against the
 last write to that address.
 
+### SystemVerilog UVM testbench (`uvm/`)
+
+`uvm/` is a native SystemVerilog UVM testbench that mirrors the PyUVM TB
+component-for-component, as a reference deliverable. **This host has no
+SystemVerilog/UVM simulator license**, so `make uvm` degrades gracefully — it
+detects VCS / Xcelium / Questa and, finding none, prints a skip and exits 0. On
+a licensed host it runs for real (`make uvm TEST=apb_random_test`).
+
+| PyUVM (`tb/`)               | SystemVerilog UVM (`uvm/`)                       |
+|-----------------------------|-------------------------------------------------|
+| `apb_bfm.py` (cocotb BFM)   | `apb_if.sv` + driver/monitor virtual interface  |
+| `ApbSeqItem`                | `apb_seq_item.sv`                               |
+| `apb_seq.py` sequences      | `apb_sequences.sv`                             |
+| driver / monitor / agent    | `apb_driver.sv` / `apb_monitor.sv` / `apb_agent.sv` |
+| `ApbScoreboard`             | `apb_scoreboard.sv`                            |
+| `ApbEnv`                    | `apb_env.sv`                                   |
+| tests + `@cocotb.test`      | `apb_test.sv` + `apb_tb_top.sv` (`run_test`)   |
+
 ## Verification
 
 Everything runs from the repo root and degrades gracefully if a tool is absent.
@@ -67,6 +87,7 @@ Everything runs from the repo root and degrades gracefully if a tool is absent.
 | Coverage        | `make coverage`        | Verilator `--coverage` C++ harness → `sim/coverage.info` (lcov); fails below `COV_MIN` (default 100%). |
 | Gate            | `make check`           | Lint then the full regression.                                    |
 | CI              | `make ci`              | Lint + regression + coverage as a single pass/fail gate.          |
+| SV UVM          | `make uvm`             | SystemVerilog UVM TB (VCS/Xcelium/Questa); skips cleanly if unlicensed. |
 
 Run `make help` for the full target list.
 

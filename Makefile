@@ -16,6 +16,7 @@ VERILATOR ?= verilator
 
 RTL       := rtl/apb_mem.sv
 TB_DIR    := tb
+UVM_DIR   := uvm
 
 IVERILOG_FLAGS ?= -g2012 -Wall
 VERILATOR_LINT_FLAGS ?= --lint-only -Wall -Wno-DECLFILENAME
@@ -31,7 +32,7 @@ COV_MIN ?= 100
 
 .PHONY: default help \
 	test test-all test-write-read test-random test-walking \
-	waves check regress ci coverage \
+	waves check regress ci coverage uvm \
 	lint _lint_iverilog _lint_verilator \
 	clean
 
@@ -47,6 +48,9 @@ help:
 	@echo "    make test-random       # constrained-random read/write mix"
 	@echo "    make test-walking      # directed address/data edge cases"
 	@echo "    make waves             # run all tests and dump tb/sim_build/apb_mem.fst"
+	@echo ""
+	@echo "  SystemVerilog UVM (license-gated; skips cleanly if no simulator):"
+	@echo "    make uvm               # run the SV/UVM TB under uvm/ (VCS/Xcelium/Questa)"
 	@echo ""
 	@echo "  Gates:"
 	@echo "    make lint              # iverilog -Wall compile check + Verilator RTL lint"
@@ -76,6 +80,11 @@ test-walking:
 waves:
 	$(MAKE) -C $(TB_DIR) WAVES=1
 	@echo "[WAVES] wrote $(TB_DIR)/sim_build/apb_mem.fst"
+
+# SystemVerilog UVM testbench (mirrors the PyUVM TB). Needs a UVM-capable
+# commercial simulator; degrades gracefully (skip, exit 0) when none is present.
+uvm:
+	$(MAKE) -C $(UVM_DIR) $(if $(TEST),TEST=$(TEST),) $(if $(WAVES),WAVES=$(WAVES),)
 
 # --- gates -------------------------------------------------------------------
 
@@ -132,6 +141,7 @@ coverage:
 
 clean:
 	$(MAKE) -C $(TB_DIR) clean 2>/dev/null || true
+	$(MAKE) -C $(UVM_DIR) clean 2>/dev/null || true
 	rm -rf $(TB_DIR)/sim_build $(TB_DIR)/__pycache__ __pycache__ \
 		results.xml dump.fst dump.vcd \
 		$(COV_DIR) sim/coverage.info sim/coverage.dat sim/annotated
