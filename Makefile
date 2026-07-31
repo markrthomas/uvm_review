@@ -16,6 +16,7 @@ VERILATOR ?= verilator
 
 RTL       := rtl/apb_mem.sv
 TB_DIR    := tb
+TB_RESULTS := $(TB_DIR)/results.xml
 UVM_DIR   := uvm
 
 IVERILOG_FLAGS ?= -g2012 -Wall
@@ -62,21 +63,41 @@ help:
 	@echo "  Other: make clean"
 
 # --- tests -------------------------------------------------------------------
+# run_one_test runs a SINGLE cocotb test in its own simulation and fails the
+# build if that test did not pass. Two reasons this is a canned recipe rather
+# than a bare `$(MAKE) -C tb`:
+#
+#   1. Fresh memory per test. cocotb runs every @cocotb.test in ONE simulation,
+#      and the RTL only zeroes its array at time 0 — so a later test would read
+#      locations an earlier test wrote (a seed-dependent scoreboard flake). One
+#      sim per test re-zeroes the memory and mirrors the SV/UVM TB.
+#   2. Real pass/fail. cocotb's make flow exits 0 here even when a test fails, so
+#      we check results.xml for a <failure>/<error> element and exit non-zero.
+define run_one_test
+@$(MAKE) -C $(TB_DIR) TESTCASE=$(1)
+@test -f $(TB_RESULTS) || { echo "[TEST] $(1): no results.xml (sim did not run)"; exit 1; }
+@if grep -Eq "<failure|<error" $(TB_RESULTS); then echo "[TEST] $(1) FAILED (see log above)"; exit 1; fi
+@echo "[TEST] $(1) passed"
+endef
 
 test: test-all
 
 test-all:
-	$(MAKE) -C $(TB_DIR)
+	$(call run_one_test,write_read_test)
+	$(call run_one_test,random_test)
+	$(call run_one_test,walking_test)
+	@echo "[TEST] all three PyUVM tests passed"
 
 test-write-read:
-	$(MAKE) -C $(TB_DIR) TESTCASE=write_read_test
+	$(call run_one_test,write_read_test)
 
 test-random:
-	$(MAKE) -C $(TB_DIR) TESTCASE=random_test
+	$(call run_one_test,random_test)
 
 test-walking:
-	$(MAKE) -C $(TB_DIR) TESTCASE=walking_test
+	$(call run_one_test,walking_test)
 
+# Waveform dump: all tests in one sim (viewing only, not a pass/fail gate).
 waves:
 	$(MAKE) -C $(TB_DIR) WAVES=1
 	@echo "[WAVES] wrote $(TB_DIR)/sim_build/apb_mem.fst"
