@@ -244,12 +244,16 @@ interface + UVM package + the bound `apb_sva` checker, and runs
 variant is built for this. It has a free tier with UVM-capable simulators, so
 you can run the SV/UVM TB without a local license:
 
-1. **Design pane** (left, `design.sv`): paste the contents of `rtl/apb_mem.sv`.
-2. **Testbench pane** (right, `testbench.sv`): paste the contents of
+1. **Testbench pane** (the **left** editor): paste the contents of
    `uvm/apb_tb_single.sv`. This one file carries the interface, the UVM package
-   (all components + tests), the top module, and the bound `apb_sva` checker —
-   so nothing else is needed. Do **not** also add the multi-file `uvm/*.sv`
-   pieces; they define the same names and would clash.
+   (all components + tests), the top module `apb_tb_top` (which calls
+   `run_test`), and the bound `apb_sva` checker — so it is the simulation top.
+   EDA Playground runs the **left/testbench** pane as the entry point, so the
+   UVM top must go here (not on the right). Do **not** also add the multi-file
+   `uvm/*.sv` pieces; they define the same names and would clash.
+2. **Design pane** (the **right** editor): paste the contents of
+   `rtl/apb_mem.sv` (the DUT). `apb_tb_top` instantiates it and the `bind` pulls
+   the `apb_sva` checker in — nothing else goes here.
 3. In the left sidebar:
    - **Languages & Libraries → UVM/OVM**: tick **UVM 1.2**.
    - **Tools & Simulators**: pick a UVM-capable one — Aldec Riviera-Pro,
@@ -263,8 +267,11 @@ you can run the SV/UVM TB without a local license:
    apb_write_read_test...`, the scoreboard line `N reads checked, 0 errors`, no
    `UVM_ERROR`/`UVM_FATAL`, and `$finish` at a non-zero time.
 
-> A run that ends at **0 ns** means no test was selected/elaborated — confirm
-> **UVM 1.2** is ticked and, if you set a `+UVM_TESTNAME`, that it's in the
+> A run that ends at **0 ns** almost always means the simulator elaborated the
+> DUT (or an empty pane) as top instead of `apb_tb_top`. First check the panes
+> are the right way round: **testbench (`apb_tb_single.sv`) on the left**, **DUT
+> (`apb_mem.sv`) on the right** — EDA Playground runs the left pane. Then confirm
+> **UVM 1.2** is ticked. If you set a `+UVM_TESTNAME`, make sure it's in the
 > **Run options** box (not the compile box) and spelled exactly.
 
 ### 8. How a transaction flows
