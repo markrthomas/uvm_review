@@ -50,7 +50,12 @@ module apb_mem #(
     assign PSLVERR = 1'b0;
 
     // Write commits in the ACCESS phase (PSEL & PENABLE & PWRITE & PREADY).
-    always_ff @(posedge PCLK) begin
+    // Plain `always @(posedge)` (not `always_ff`): the memory is preloaded to
+    // zero in the initial block above, and SystemVerilog forbids an `always_ff`
+    // variable from having any second driver (VCS flags this as ICPD; Icarus
+    // and Verilator are lenient). A clocked `always` is the portable idiom for a
+    // sim memory model with an initial preload.
+    always @(posedge PCLK) begin
         if (PRESETn && PSEL && PENABLE && PWRITE && PREADY)
             mem[PADDR] <= PWDATA;
     end
