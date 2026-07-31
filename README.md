@@ -200,15 +200,17 @@ Under the hood each sets `TESTCASE=<name>` for the cocotb runner.
 ### 4. Inspect waveforms
 
 ```bash
-make wave                # dump (if needed) + open GTKWave with the curated layout
-make waves               # just (re)dump tb/sim_build/apb_mem.fst
+make wave                     # dump (if needed) + open GTKWave with the curated layout
+make wave TEST=random_test    # dump & view just one test, not all three concatenated
+make waves                    # just (re)dump tb/sim_build/apb_mem.fst
 ```
 
 `make wave` opens the dump with `tb/apb_mem.gtkw`, which groups the signals
-(clock/reset, APB request, APB response) with the address/data buses in hex. It
-regenerates the dump if it's missing (run `make waves` to force a fresh one) and
-skips cleanly if GTKWave isn't installed. Look at `PSEL`/`PENABLE` for the
-SETUP→ACCESS handshake and `PREADY` held high (zero wait states).
+(clock/reset, APB request, APB response) with the address/data buses in hex. By
+default all three tests share one dump; `TEST=write_read_test` / `random_test` /
+`walking_test` dumps and views just that one (and always regenerates). It skips
+cleanly if GTKWave isn't installed. Look at `PSEL`/`PENABLE` for the SETUP→ACCESS
+handshake and `PREADY` held high (zero wait states).
 
 ### 5. Measure coverage
 

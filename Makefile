@@ -50,8 +50,8 @@ help:
 	@echo "    make test-write-read   # write-then-read-back sequence"
 	@echo "    make test-random       # constrained-random read/write mix"
 	@echo "    make test-walking      # directed address/data edge cases"
-	@echo "    make waves             # run all tests and dump tb/sim_build/apb_mem.fst"
-	@echo "    make wave              # open the dump in GTKWave (tb/apb_mem.gtkw layout)"
+	@echo "    make waves             # dump tb/sim_build/apb_mem.fst (all tests; TEST=<name> for one)"
+	@echo "    make wave              # open the dump in GTKWave (add TEST=<name> for a single test)"
 	@echo ""
 	@echo "  SystemVerilog UVM (license-gated; skips cleanly if no simulator):"
 	@echo "    make uvm               # run the SV/UVM TB under uvm/ (VCS/Xcelium/Questa)"
@@ -100,25 +100,31 @@ test-random:
 test-walking:
 	$(call run_one_test,walking_test)
 
-# Waveform dump: all three tests in one sim (viewing only, not a pass/fail gate).
-# cocotb's Icarus dump module is only compiled into a FRESH sim_build, so wipe
-# it first — a stale build silently skips the dump and leaves no/empty FST.
+# Waveform dump. By default all three tests run in one sim (viewing only, not a
+# pass/fail gate); TEST=<name> dumps just one, e.g. `make waves TEST=random_test`.
+# cocotb's Icarus dump module is only compiled into a FRESH sim_build, so wipe it
+# first — a stale build silently skips the dump and leaves no/empty FST.
+WAVE_TESTS := write_read_test random_test walking_test
+
 waves:
+	@if [ -n "$(TEST)" ] && ! echo " $(WAVE_TESTS) " | grep -q " $(TEST) "; then \
+		echo "[WAVES] unknown TEST='$(TEST)' — choose one of: $(WAVE_TESTS)"; exit 1; fi
 	rm -rf $(TB_DIR)/sim_build
-	$(MAKE) -C $(TB_DIR) WAVES=1
-	@echo "[WAVES] wrote $(FST)"
+	$(MAKE) -C $(TB_DIR) WAVES=1 $(if $(TEST),TESTCASE=$(TEST),)
+	@echo "[WAVES] wrote $(FST)$(if $(TEST), (single test: $(TEST)),)"
 
 # Open the dump in GTKWave with the curated signal layout (grouped clock/reset,
-# APB request, APB response; buses in hex). Regenerates the FST if it is
-# missing; run `make waves` to force a fresh dump. Skips cleanly if GTKWave is
-# not installed. Runs in the foreground — closing GTKWave returns the shell.
+# APB request, APB response; buses in hex). Regenerates the FST when TEST=<name>
+# is given or the dump is missing (run `make waves` to force a fresh full dump);
+# skips cleanly if GTKWave is not installed. Runs in the foreground — closing
+# GTKWave returns the shell.
 wave:
 	@if ! command -v gtkwave >/dev/null 2>&1; then \
 		echo "[WAVE] gtkwave not on PATH — install GTKWave to view waveforms"; \
 		exit 0; \
 	fi; \
-	test -f $(FST) || $(MAKE) --no-print-directory waves; \
-	echo "[WAVE] opening $(FST) in GTKWave (layout: $(GTKW))"; \
+	if [ -n "$(TEST)" ] || [ ! -f $(FST) ]; then $(MAKE) --no-print-directory waves $(if $(TEST),TEST=$(TEST),); fi; \
+	echo "[WAVE] opening $(FST) in GTKWave (layout: $(GTKW))$(if $(TEST), — single test: $(TEST),)"; \
 	exec gtkwave $(FST) $(GTKW)
 
 # SystemVerilog UVM testbench (mirrors the PyUVM TB). Needs a UVM-capable
