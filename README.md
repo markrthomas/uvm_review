@@ -138,7 +138,7 @@ Everything runs from the repo root and degrades gracefully if a tool is absent.
 | Directed        | `make test-write-read` | Write a value, read it back from the same address.                |
 | Random          | `make test-random`     | Constrained-random mix of reads and writes.                       |
 | Walking         | `make test-walking`    | Directed first/last-address and all-0 / all-1 payload edge cases. |
-| Waves           | `make waves`           | Full run dumping `tb/sim_build/apb_mem.fst` (open in GTKWave).    |
+| Waves           | `make wave`            | Dump then open GTKWave with the curated `tb/apb_mem.gtkw` layout (`make waves` just dumps). |
 | Lint            | `make lint`            | `iverilog -Wall` compile check + Verilator RTL lint.              |
 | Coverage        | `make coverage`        | Verilator `--coverage` C++ harness → `sim/coverage.info` (lcov); fails below `COV_MIN` (default 100%). |
 | Gate            | `make check`           | Lint then the full regression.                                    |
@@ -200,12 +200,15 @@ Under the hood each sets `TESTCASE=<name>` for the cocotb runner.
 ### 4. Inspect waveforms
 
 ```bash
-make waves               # runs the suite and writes tb/sim_build/apb_mem.fst
-gtkwave tb/sim_build/apb_mem.fst
+make wave                # dump (if needed) + open GTKWave with the curated layout
+make waves               # just (re)dump tb/sim_build/apb_mem.fst
 ```
 
-Look at `PSEL`/`PENABLE` to see the SETUP→ACCESS handshake and `PREADY` held
-high (zero wait states).
+`make wave` opens the dump with `tb/apb_mem.gtkw`, which groups the signals
+(clock/reset, APB request, APB response) with the address/data buses in hex. It
+regenerates the dump if it's missing (run `make waves` to force a fresh one) and
+skips cleanly if GTKWave isn't installed. Look at `PSEL`/`PENABLE` for the
+SETUP→ACCESS handshake and `PREADY` held high (zero wait states).
 
 ### 5. Measure coverage
 

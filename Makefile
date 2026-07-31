@@ -17,6 +17,8 @@ VERILATOR ?= verilator
 RTL       := rtl/apb_mem.sv
 TB_DIR    := tb
 TB_RESULTS := $(TB_DIR)/results.xml
+FST       := $(TB_DIR)/sim_build/apb_mem.fst
+GTKW      := $(TB_DIR)/apb_mem.gtkw
 UVM_DIR   := uvm
 
 IVERILOG_FLAGS ?= -g2012 -Wall
@@ -33,7 +35,7 @@ COV_MIN ?= 100
 
 .PHONY: default help \
 	test test-all test-write-read test-random test-walking \
-	waves check regress ci coverage uvm \
+	waves wave check regress ci coverage uvm \
 	lint _lint_iverilog _lint_verilator \
 	clean
 
@@ -49,6 +51,7 @@ help:
 	@echo "    make test-random       # constrained-random read/write mix"
 	@echo "    make test-walking      # directed address/data edge cases"
 	@echo "    make waves             # run all tests and dump tb/sim_build/apb_mem.fst"
+	@echo "    make wave              # open the dump in GTKWave (tb/apb_mem.gtkw layout)"
 	@echo ""
 	@echo "  SystemVerilog UVM (license-gated; skips cleanly if no simulator):"
 	@echo "    make uvm               # run the SV/UVM TB under uvm/ (VCS/Xcelium/Questa)"
@@ -97,10 +100,26 @@ test-random:
 test-walking:
 	$(call run_one_test,walking_test)
 
-# Waveform dump: all tests in one sim (viewing only, not a pass/fail gate).
+# Waveform dump: all three tests in one sim (viewing only, not a pass/fail gate).
+# cocotb's Icarus dump module is only compiled into a FRESH sim_build, so wipe
+# it first — a stale build silently skips the dump and leaves no/empty FST.
 waves:
+	rm -rf $(TB_DIR)/sim_build
 	$(MAKE) -C $(TB_DIR) WAVES=1
-	@echo "[WAVES] wrote $(TB_DIR)/sim_build/apb_mem.fst"
+	@echo "[WAVES] wrote $(FST)"
+
+# Open the dump in GTKWave with the curated signal layout (grouped clock/reset,
+# APB request, APB response; buses in hex). Regenerates the FST if it is
+# missing; run `make waves` to force a fresh dump. Skips cleanly if GTKWave is
+# not installed. Runs in the foreground — closing GTKWave returns the shell.
+wave:
+	@if ! command -v gtkwave >/dev/null 2>&1; then \
+		echo "[WAVE] gtkwave not on PATH — install GTKWave to view waveforms"; \
+		exit 0; \
+	fi; \
+	test -f $(FST) || $(MAKE) --no-print-directory waves; \
+	echo "[WAVE] opening $(FST) in GTKWave (layout: $(GTKW))"; \
+	exec gtkwave $(FST) $(GTKW)
 
 # SystemVerilog UVM testbench (mirrors the PyUVM TB). Needs a UVM-capable
 # commercial simulator; degrades gracefully (skip, exit 0) when none is present.
