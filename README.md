@@ -244,35 +244,41 @@ interface + UVM package + the bound `apb_sva` checker, and runs
 variant is built for this. It has a free tier with UVM-capable simulators, so
 you can run the SV/UVM TB without a local license:
 
-1. **Testbench pane** (the **left** editor): paste the contents of
-   `uvm/apb_tb_single.sv`. This one file carries the interface, the UVM package
-   (all components + tests), the top module `apb_tb_top` (which calls
-   `run_test`), and the bound `apb_sva` checker — so it is the simulation top.
-   EDA Playground runs the **left/testbench** pane as the entry point, so the
-   UVM top must go here (not on the right). Do **not** also add the multi-file
-   `uvm/*.sv` pieces; they define the same names and would clash.
-2. **Design pane** (the **right** editor): paste the contents of
-   `rtl/apb_mem.sv` (the DUT). `apb_tb_top` instantiates it and the `bind` pulls
-   the `apb_sva` checker in — nothing else goes here.
+1. **`design.sv` pane**: paste the contents of `uvm/apb_tb_single.sv` — this one
+   file carries the interface, the UVM package (all components + tests), the top
+   module `apb_tb_top` (which calls `run_test`), and the bound `apb_sva` checker.
+   Do **not** also add the multi-file `uvm/*.sv` pieces; they define the same
+   names and would clash.
+2. **`testbench.sv` pane**: paste the contents of `rtl/apb_mem.sv` (the DUT).
+   `apb_tb_top` instantiates it and the `bind` pulls the `apb_sva` checker in.
+
+   Which pane holds which file does **not** affect the run — EDA Playground
+   compiles both together (`vcs … design.sv testbench.sv`). Just keep them
+   consistent with the tab names above.
 3. In the left sidebar:
    - **Languages & Libraries → UVM/OVM**: tick **UVM 1.2**.
    - **Tools & Simulators**: pick a UVM-capable one — Aldec Riviera-Pro,
      Siemens Questa, Cadence Xcelium, or Synopsys VCS.
-   - **Run options** (optional): the top defaults to the write-read test, so you
-     can leave this empty. To pick another, add
-     `+UVM_TESTNAME=apb_random_test` (or `apb_walking_test`).
+   - **Run options**: add **`+UVM_TESTNAME=apb_write_read_test`** — this is the
+     reliable way to select the test (swap in `apb_random_test` or
+     `apb_walking_test` for the others). The current `apb_tb_top` also defaults
+     to the write-read test via `run_test("apb_write_read_test")`, so an
+     up-to-date paste runs even with this box empty; setting it explicitly means
+     you don't depend on the pasted file being current.
    - For waveforms: tick **Open EPWave after run** and add `+define+DUMP` to the
      compile options (the top's `` `ifdef DUMP `` guards a `$dumpvars`).
 4. Click **Run**. A healthy log shows the UVM banner, `Running test
    apb_write_read_test...`, the scoreboard line `N reads checked, 0 errors`, no
    `UVM_ERROR`/`UVM_FATAL`, and `$finish` at a non-zero time.
 
-> A run that ends at **0 ns** almost always means the simulator elaborated the
-> DUT (or an empty pane) as top instead of `apb_tb_top`. First check the panes
-> are the right way round: **testbench (`apb_tb_single.sv`) on the left**, **DUT
-> (`apb_mem.sv`) on the right** — EDA Playground runs the left pane. Then confirm
-> **UVM 1.2** is ticked. If you set a `+UVM_TESTNAME`, make sure it's in the
-> **Run options** box (not the compile box) and spelled exactly.
+> **Finishing at 0 ns?** EDA Playground's command line does **not** add
+> `+UVM_TESTNAME`, so the test is chosen only by the `run_test(...)` call in
+> `apb_tb_top`. A 0-ns finish that prints the UVM release-notes banner but **no**
+> `Running test ...` line (and no `UVM_FATAL`) means `run_test` was reached with
+> an empty test name — the pasted top is a stale copy calling `run_test();` with
+> no argument. Fix it by adding `+UVM_TESTNAME=apb_write_read_test` to **Run
+> options**, or re-copy the current `uvm/apb_tb_single.sv`, whose top ends with
+> `run_test("apb_write_read_test");`. Also confirm **UVM 1.2** is ticked.
 
 ### 8. How a transaction flows
 
