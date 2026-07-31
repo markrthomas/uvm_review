@@ -114,16 +114,17 @@ waves:
 	@echo "[WAVES] wrote $(FST)$(if $(TEST), (single test: $(TEST)),)"
 
 # Open the dump in GTKWave with the curated signal layout (grouped clock/reset,
-# APB request, APB response; buses in hex). Regenerates the FST when TEST=<name>
-# is given or the dump is missing (run `make waves` to force a fresh full dump);
-# skips cleanly if GTKWave is not installed. Runs in the foreground — closing
-# GTKWave returns the shell.
+# APB request, APB response; buses in hex). ALWAYS regenerates a fresh dump via
+# `waves` — a leftover sim_build from a non-WAVES `make test`/`ci` run rewrites
+# apb_mem.fst in VCD format (Icarus dumps VCD without +fst), which GTKWave can't
+# open. Skips cleanly if GTKWave is not installed. Runs in the foreground —
+# closing GTKWave returns the shell.
 wave:
 	@if ! command -v gtkwave >/dev/null 2>&1; then \
 		echo "[WAVE] gtkwave not on PATH — install GTKWave to view waveforms"; \
 		exit 0; \
 	fi; \
-	if [ -n "$(TEST)" ] || [ ! -f $(FST) ]; then $(MAKE) --no-print-directory waves $(if $(TEST),TEST=$(TEST),); fi; \
+	$(MAKE) --no-print-directory waves $(if $(TEST),TEST=$(TEST),); \
 	echo "[WAVE] opening $(FST) in GTKWave (layout: $(GTKW))$(if $(TEST), — single test: $(TEST),)"; \
 	exec gtkwave $(FST) $(GTKW)
 
