@@ -242,20 +242,49 @@ interface + UVM package + the bound `apb_sva` checker, and runs
 
 **Run it on [EDA Playground](https://www.edaplayground.com)** — the single-file
 variant is built for this. It has a free tier with UVM-capable simulators, so
-you can run the SV/UVM TB without a local license:
+you can run the SV/UVM TB without a local license. This procedure is verified on
+Synopsys VCS (2025.06) and mirrors the local flow's result exactly (32 write-read
+pairs, `0 errors`).
 
-1. **`design.sv` pane**: paste the contents of `uvm/apb_tb_single.sv` — this one
-   file carries the interface, the UVM package (all components + tests), the top
-   module `apb_tb_top` (which calls `run_test`), and the bound `apb_sva` checker.
-   Do **not** also add the multi-file `uvm/*.sv` pieces; they define the same
-   names and would clash.
-2. **`testbench.sv` pane**: paste the contents of `rtl/apb_mem.sv` (the DUT).
-   `apb_tb_top` instantiates it and the `bind` pulls the `apb_sva` checker in.
+**Key fact:** EDA Playground compiles **only** the two default files,
+`testbench.sv` and `design.sv` (the invocation is literally
+`vcs … design.sv testbench.sv`). Any *other* file tab you create is written to
+the working directory but is **not** compiled unless you `` `include `` it. So the
+TB must end up in `testbench.sv` and the DUT in `design.sv` — either by pasting
+directly (A) or by including your own files (B).
 
-   Which pane holds which file does **not** affect the run — EDA Playground
-   compiles both together (`vcs … design.sv testbench.sv`). Just keep them
-   consistent with the tab names above.
-3. In the left sidebar:
+1. **Load the two sources** — pick one method:
+
+   **A. Direct paste (simplest).**
+   - **`testbench.sv`**: paste the entire contents of `uvm/apb_tb_single.sv` —
+     this one file carries the interface, the UVM package (all components +
+     tests), the top module `apb_tb_top` (which calls `run_test`), and the bound
+     `apb_sva` checker. Do **not** also add the multi-file `uvm/*.sv` pieces;
+     they define the same names and would clash.
+   - **`design.sv`**: paste the entire contents of `rtl/apb_mem.sv` (the DUT).
+     `apb_tb_top` instantiates it and the `bind` pulls the `apb_sva` checker in.
+
+   **B. Keep your files modular via `` `include `` (no merged panes).** Add two
+   extra file tabs holding your real sources unchanged, then make the two
+   compiled files one-liners that pull them in:
+   - Add a tab **`apb_tb_single.sv`** with the contents of `uvm/apb_tb_single.sv`,
+     and set **`testbench.sv`** to just:
+     ```systemverilog
+     `include "apb_tb_single.sv"
+     ```
+   - Add a tab **`apb_mem.sv`** with the contents of `rtl/apb_mem.sv`, and set
+     **`design.sv`** to just:
+     ```systemverilog
+     `include "apb_mem.sv"
+     ```
+   Added files live in the working directory, so a same-name `` `include ``
+   resolves without extra flags; if it reports "cannot find include file", add
+   `+incdir+.` to the compile-options box. (EDA Playground has no import-from-URL
+   or GitHub fetch, so the code still has to reach the page once — `` `include ``
+   just lets you mirror the repo's file split instead of merging everything into
+   two panes.)
+
+2. In the left sidebar:
    - **Languages & Libraries → UVM/OVM**: tick **UVM 1.2**.
    - **Tools & Simulators**: pick a UVM-capable one — Aldec Riviera-Pro,
      Siemens Questa, Cadence Xcelium, or Synopsys VCS.
@@ -267,18 +296,41 @@ you can run the SV/UVM TB without a local license:
      you don't depend on the pasted file being current.
    - For waveforms: tick **Open EPWave after run** and add `+define+DUMP` to the
      compile options (the top's `` `ifdef DUMP `` guards a `$dumpvars`).
-4. Click **Run**. A healthy log shows the UVM banner, `Running test
-   apb_write_read_test...`, the scoreboard line `N reads checked, 0 errors`, no
-   `UVM_ERROR`/`UVM_FATAL`, and `$finish` at a non-zero time.
+
+3. Click **Run**. A healthy log shows the UVM banner, then:
+   ```
+   UVM_INFO @ 0: reporter [RNTST] Running test apb_write_read_test...
+   UVM_INFO testbench.sv(...) @ 1950000: uvm_test_top.env.scoreboard [SCOREBOARD] 32 reads checked, 0 errors
+   ...
+   UVM_ERROR :    0
+   UVM_FATAL :    0
+   testbench.sv, ...: apb_tb_top.dut.u_apb_sva.c_write, ... 32 match
+   testbench.sv, ...: apb_tb_top.dut.u_apb_sva.c_read,  ... 32 match
+   ```
+   i.e. the test runs, the scoreboard passes, both `apb_sva` cover points fire,
+   and `$finish` lands at a non-zero time (~1.95 µs), not 0 ns.
+
+4. **Reuse without re-pasting.** Click **Save** — the playground gets a stable
+   URL (e.g. `edaplayground.com/x/xxxx`) that persists every pane. Reopen that URL
+   next time and everything is already loaded; there's no import-from-repo, so
+   this saved link *is* the "no cut-and-paste" path for subsequent runs.
 
 > **Finishing at 0 ns?** EDA Playground's command line does **not** add
 > `+UVM_TESTNAME`, so the test is chosen only by the `run_test(...)` call in
 > `apb_tb_top`. A 0-ns finish that prints the UVM release-notes banner but **no**
 > `Running test ...` line (and no `UVM_FATAL`) means `run_test` was reached with
-> an empty test name — the pasted top is a stale copy calling `run_test();` with
-> no argument. Fix it by adding `+UVM_TESTNAME=apb_write_read_test` to **Run
-> options**, or re-copy the current `uvm/apb_tb_single.sv`, whose top ends with
-> `run_test("apb_write_read_test");`. Also confirm **UVM 1.2** is ticked.
+> an empty test name — usually because your current TB is sitting in an extra tab
+> that isn't compiled, so the stale `testbench.sv` (a bare `run_test();`) is what
+> ran. Make sure the real TB is in `testbench.sv` itself (or `` `include ``-d by
+> it), add `+UVM_TESTNAME=apb_write_read_test` to **Run options**, and confirm
+> **UVM 1.2** is ticked.
+
+> **`Error-[ICPD] Illegal combination of drivers` on `design.sv`?** That's VCS
+> (correctly) rejecting an `always_ff` variable that also has a second driver.
+> The DUT preloads its memory in an `initial` block, so its clocked write must be
+> a plain `always @(posedge PCLK)`, not `always_ff` (Icarus/Verilator tolerate
+> the latter; VCS does not). The committed `rtl/apb_mem.sv` already uses plain
+> `always` — re-copy the current version.
 
 ### 8. How a transaction flows
 
