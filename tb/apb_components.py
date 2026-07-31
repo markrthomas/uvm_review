@@ -46,6 +46,7 @@ class ApbMonitor(uvm_monitor):
             addr, write, wdata, rdata = await self.bfm.get_monitored()
             tr = ApbSeqItem("mon", addr=addr, data=wdata, write=write)
             tr.rdata = rdata
+            self.logger.info(f"observed {tr}")
             self.ap.write(tr)
 
 

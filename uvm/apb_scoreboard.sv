@@ -35,7 +35,7 @@ class apb_scoreboard extends uvm_component;
                     "@0x%04X: got 0x%02X exp 0x%02X",
                     tr.addr, tr.rdata, expected))
             end else begin
-                `uvm_info("MATCH", tr.convert2string(), UVM_HIGH)
+                `uvm_info("MATCH", tr.convert2string(), UVM_MEDIUM)
             end
         end
     endfunction

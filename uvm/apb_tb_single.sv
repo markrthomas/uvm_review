@@ -242,6 +242,9 @@ package apb_pkg;
                     tr.write = vif.PWRITE;
                     tr.data  = vif.PWDATA;
                     tr.rdata = vif.PRDATA;
+                    `uvm_info("MON",
+                              $sformatf("observed %s", tr.convert2string()),
+                              UVM_MEDIUM)
                     ap.write(tr);
                 end
             end
@@ -310,7 +313,7 @@ package apb_pkg;
                         "@0x%04X: got 0x%02X exp 0x%02X",
                         tr.addr, tr.rdata, expected))
                 end else begin
-                    `uvm_info("MATCH", tr.convert2string(), UVM_HIGH)
+                    `uvm_info("MATCH", tr.convert2string(), UVM_MEDIUM)
                 end
             end
         endfunction

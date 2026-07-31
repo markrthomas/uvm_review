@@ -31,6 +31,8 @@ class apb_monitor extends uvm_monitor;
                 tr.write = vif.PWRITE;
                 tr.data  = vif.PWDATA;
                 tr.rdata = vif.PRDATA;
+                `uvm_info("MON", $sformatf("observed %s", tr.convert2string()),
+                          UVM_MEDIUM)
                 ap.write(tr);
             end
         end
