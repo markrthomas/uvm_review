@@ -297,9 +297,15 @@ directly (A) or by including your own files (B).
    - For waveforms: tick **Open EPWave after run** and add `+define+DUMP` to the
      compile options (the top's `` `ifdef DUMP `` guards a `$dumpvars`).
 
-3. Click **Run**. A healthy log shows the UVM banner, then:
+3. Click **Run**. A healthy log shows the UVM banner, then the transaction
+   stream (the monitor logs every transfer, the scoreboard every read check),
+   the summary, and the `apb_sva` cover hits:
    ```
    UVM_INFO @ 0: reporter [RNTST] Running test apb_write_read_test...
+   UVM_INFO testbench.sv(...) @ ...: uvm_test_top.env.agent.monitor [MON]   observed WR @0x1A2B = 0x5C
+   UVM_INFO testbench.sv(...) @ ...: uvm_test_top.env.agent.monitor [MON]   observed RD @0x1A2B = 0x5C
+   UVM_INFO testbench.sv(...) @ ...: uvm_test_top.env.scoreboard   [MATCH] RD @0x1A2B = 0x5C
+   ...
    UVM_INFO testbench.sv(...) @ 1950000: uvm_test_top.env.scoreboard [SCOREBOARD] 32 reads checked, 0 errors
    ...
    UVM_ERROR :    0
@@ -307,8 +313,9 @@ directly (A) or by including your own files (B).
    testbench.sv, ...: apb_tb_top.dut.u_apb_sva.c_write, ... 32 match
    testbench.sv, ...: apb_tb_top.dut.u_apb_sva.c_read,  ... 32 match
    ```
-   i.e. the test runs, the scoreboard passes, both `apb_sva` cover points fire,
-   and `$finish` lands at a non-zero time (~1.95 µs), not 0 ns.
+   i.e. each transfer is logged, the scoreboard passes, both `apb_sva` cover
+   points fire, and `$finish` lands at a non-zero time (~1.95 µs), not 0 ns.
+   (Quiet it down with `+UVM_VERBOSITY=UVM_LOW` to keep just the summary lines.)
 
 4. **Reuse without re-pasting.** Click **Save** — the playground gets a stable
    URL (e.g. `edaplayground.com/x/xxxx`) that persists every pane. Reopen that URL
