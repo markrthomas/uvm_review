@@ -20,6 +20,8 @@ TB_RESULTS := $(TB_DIR)/results.xml
 FST       := $(TB_DIR)/sim_build/apb_mem.fst
 GTKW      := $(TB_DIR)/apb_mem.gtkw
 UVM_DIR   := uvm
+LP_DIR    := lp
+LP_RESULTS := $(LP_DIR)/results.xml
 
 IVERILOG_FLAGS ?= -g2012 -Wall
 VERILATOR_LINT_FLAGS ?= --lint-only -Wall -Wno-DECLFILENAME
@@ -35,7 +37,7 @@ COV_MIN ?= 100
 
 .PHONY: default help \
 	test test-all test-write-read test-random test-walking \
-	waves wave check regress ci coverage uvm \
+	waves wave check regress ci coverage uvm lp \
 	lint _lint_iverilog _lint_verilator \
 	clean
 
@@ -55,6 +57,9 @@ help:
 	@echo ""
 	@echo "  SystemVerilog UVM (license-gated; skips cleanly if no simulator):"
 	@echo "    make uvm               # run the SV/UVM TB under uvm/ (VCS/Xcelium/Questa)"
+	@echo ""
+	@echo "  Low-power / UPF:"
+	@echo "    make lp                # UPF-emulated power-cycle test (isolation/retention/corruption)"
 	@echo ""
 	@echo "  Gates:"
 	@echo "    make lint              # iverilog -Wall compile check + Verilator RTL lint"
@@ -133,6 +138,21 @@ wave:
 uvm:
 	$(MAKE) -C $(UVM_DIR) $(if $(TEST),TEST=$(TEST),) $(if $(WAVES),WAVES=$(WAVES),) $(if $(SINGLE),SINGLE=$(SINGLE),)
 
+# Low-power (UPF) demo. apb_mem.upf is the golden IEEE-1801 intent; no simulator
+# in this repo is UPF-aware, so `make lp` instead runs a hand-modeled emulation
+# (lp/apb_mem_lp.sv, lp/apb_mem_array.sv) that reproduces what the UPF flow would
+# do — isolation, retention, and power-down corruption — and gates on its
+# results.xml like the PyUVM tests. It also compiles the UPF-clean variant (no
+# -DLP_EMULATE) so the real-flow sources stay buildable.
+lp:
+	@echo "[LP] compile-check UPF-clean variant (no emulation)..."
+	@$(IVERILOG) $(IVERILOG_FLAGS) -o /dev/null $(LP_DIR)/apb_mem_array.sv $(LP_DIR)/apb_mem_lp.sv
+	@echo "[LP] power-cycle test (UPF-emulated isolation/retention/corruption)..."
+	@$(MAKE) -C $(LP_DIR)
+	@test -f $(LP_RESULTS) || { echo "[LP] no results.xml (sim did not run)"; exit 1; }
+	@if grep -Eq "<failure|<error" $(LP_RESULTS); then echo "[LP] FAILED (see log above)"; exit 1; fi
+	@echo "[LP] passed"
+
 # --- gates -------------------------------------------------------------------
 
 lint: _lint_iverilog _lint_verilator
@@ -151,8 +171,8 @@ _lint_verilator:
 
 check: lint test-all
 
-regress: lint test-all
-	@echo "[REGRESS] lint + PyUVM regression PASSED"
+regress: lint test-all lp
+	@echo "[REGRESS] lint + PyUVM regression + low-power (UPF) demo PASSED"
 
 ci: regress coverage
 	@echo "[CI] lint + regression + coverage PASSED"
@@ -189,6 +209,8 @@ coverage:
 clean:
 	$(MAKE) -C $(TB_DIR) clean 2>/dev/null || true
 	$(MAKE) -C $(UVM_DIR) clean 2>/dev/null || true
-	rm -rf $(TB_DIR)/sim_build $(TB_DIR)/__pycache__ __pycache__ \
+	$(MAKE) -C $(LP_DIR) clean 2>/dev/null || true
+	rm -rf $(LP_DIR)/sim_build $(LP_DIR)/__pycache__ $(LP_RESULTS) \
+		$(TB_DIR)/sim_build $(TB_DIR)/__pycache__ __pycache__ \
 		results.xml dump.fst dump.vcd \
 		$(COV_DIR) sim/coverage.info sim/coverage.dat sim/annotated

@@ -40,6 +40,7 @@ flowchart LR
 - `rtl/` — the DUT (`apb_mem.sv`)
 - `tb/` — PyUVM testbench and its cocotb runner (`tb/Makefile`)
 - `uvm/` — SystemVerilog UVM testbench mirroring the PyUVM TB (`uvm/Makefile`)
+- `lp/` — low-power / UPF example: golden `apb_mem.upf` + a runnable emulation (`make lp`)
 - `sim/` — Verilator C++ coverage harness (`sim_main.cpp`)
 - `Makefile` — standard DV gate targets (delegates the cocotb run to `tb/`)
 
@@ -144,6 +145,7 @@ Everything runs from the repo root and degrades gracefully if a tool is absent.
 | Gate            | `make check`           | Lint then the full regression.                                    |
 | CI              | `make ci`              | Lint + regression + coverage as a single pass/fail gate.          |
 | SV UVM          | `make uvm`             | SystemVerilog UVM TB (VCS/Xcelium/Questa); skips cleanly if unlicensed. |
+| Low-power / UPF | `make lp`              | UPF-emulated power-cycle test: isolation, retention, and power-down corruption (`lp/`). Folded into `make regress`/`make ci`. |
 
 Run `make help` for the full target list.
 
@@ -345,7 +347,43 @@ directly (A) or by including your own files (B).
 > the latter; VCS does not). The committed `rtl/apb_mem.sv` already uses plain
 > `always` — re-copy the current version.
 
-### 8. How a transaction flows
+### 8. The low-power (UPF) example (`lp/`)
+
+`lp/` demonstrates a **UPF (IEEE 1801) power-management** flow on the same APB
+memory. The array is split into its own instance (`u_array`) so a power domain
+can gate it:
+
+- **`PD_AON`** — always-on APB interface (`apb_mem_lp`)
+- **`PD_MEM`** — switchable memory array (`apb_mem_array`), with a power switch,
+  an isolation strategy on its outputs, and a retention strategy.
+
+`lp/apb_mem.upf` is the **golden IEEE-1801 intent** — power domains, supply nets,
+the `mem_sw` power switch, `set_isolation` (clamp outputs to 0), `set_retention`,
+and the power-state table.
+
+```bash
+make lp     # runs the power-cycle test; also folded into `make regress`/`make ci`
+```
+
+> **No simulator here is UPF-aware.** Real power-aware simulation (automatic
+> corruption, isolation/retention) is a licensed feature of VCS-NLP / Questa
+> PowerAware / Xcelium — Icarus and Verilator don't do it. So `.upf` is **not**
+> executed by `make lp`; hand it to a UPF-aware tool for the real thing (see the
+> invocation examples at the top of `lp/apb_mem.upf`). Instead, `make lp` runs a
+> **hand-modeled emulation** (behind `` `ifdef LP_EMULATE `` in the RTL) that
+> reproduces the same behavior on plain Icarus + cocotb, so the concepts are
+> actually *tested* here:
+>
+> - **Isolation** — while `PD_MEM` is off, its outputs clamp (`PREADY=0`,
+>   `PRDATA=0`), so its X's never reach the always-on master.
+> - **Retention** — a power cycle with `ret=1` preserves the stored contents.
+> - **Corruption** — a power cycle with `ret=0` loses them (the array reads back
+>   X), proving retention did real work.
+>
+> Compile the `lp/` sources *without* `-DLP_EMULATE` for a clean functional model
+> that a UPF tool then augments from `apb_mem.upf`.
+
+### 9. How a transaction flows
 
 Tracing one write-then-read pair through the components (SV names; PyUVM mirrors
 them):
@@ -364,7 +402,7 @@ them):
 5. **Assertions** (`apb_sva`, SV flow): concurrently check the pin-level
    protocol on every clock — independent of the scoreboard's data check.
 
-### 9. Extend it
+### 10. Extend it
 
 - **New stimulus**: add a `uvm_sequence` subclass in `uvm/apb_sequences.sv`
   (and/or `tb/apb_seq.py`), then a `uvm_test` that overrides `create_seq()` to
@@ -375,6 +413,9 @@ them):
   `rtl/apb_mem.sv`; the interface, harness, and TBs pick the widths up.
 - **New assertion**: add a property to `uvm/apb_sva.sv` (and mirror it in the
   inline copy inside `apb_tb_single.sv`).
+- **More power intent**: extend `lp/apb_mem.upf` (e.g. a second switchable
+  domain, level shifters, a finer PST) and mirror the behavior in the
+  `` `ifdef LP_EMULATE `` blocks and `lp/test_lp.py` so `make lp` still checks it.
 
 ## Toolchain
 
