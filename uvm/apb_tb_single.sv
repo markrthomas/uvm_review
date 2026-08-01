@@ -109,7 +109,7 @@ package apb_pkg;
         endtask
     endclass
 
-    // Random mix of reads and writes. Reads are biased 2:1 toward addresses
+    // Random mix of reads and writes. Reads are biased 4:1 toward addresses
     // that have already been written, so they mostly check stored data instead
     // of reading never-written locations (which return 0); writes stay fully
     // random to populate the set. All randomization is constraint-based.
@@ -130,13 +130,13 @@ package apb_pkg;
                 start_item(item);
                 if (!item.randomize())
                     `uvm_error("RAND", "apb_seq_item randomize failed")
-                // For reads, re-pick the address 2:1 in favour of a written one.
+                // For reads, re-pick the address 4:1 in favour of a written one.
                 if (!item.write && written.size() > 0) begin
                     bit        hit_written;
                     int        idx;
                     bit [14:0] target;
                     if (!std::randomize(hit_written) with {
-                            hit_written dist { 1 := 2, 0 := 1 }; })
+                            hit_written dist { 1 := 4, 0 := 1 }; })
                         `uvm_error("RAND", "bias randomize failed")
                     if (hit_written) begin
                         if (!std::randomize(idx) with {

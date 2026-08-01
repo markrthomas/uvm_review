@@ -29,7 +29,7 @@ class ApbWriteReadSeq(uvm_sequence):
 
 
 class ApbRandomSeq(uvm_sequence):
-    """Random mix of reads and writes. Reads are biased 2:1 toward addresses
+    """Random mix of reads and writes. Reads are biased 4:1 toward addresses
     that have already been written, so they mostly check stored data instead of
     reading never-written locations (which return 0); writes stay fully random
     to populate the address set."""
@@ -48,9 +48,9 @@ class ApbRandomSeq(uvm_sequence):
                                   data=random.randint(0, DATA_MASK),
                                   write=True)
             else:
-                # 2:1 in favour of an already-written address; fall back to a
+                # 4:1 in favour of an already-written address; fall back to a
                 # fresh random one (and always when nothing is written yet).
-                if written and random.random() < 2 / 3:
+                if written and random.random() < 4 / 5:
                     addr = random.choice(written)
                 else:
                     addr = random.randint(0, ADDR_MASK)

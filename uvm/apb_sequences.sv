@@ -2,7 +2,7 @@
 // Stimulus sequences — one-for-one with tb/apb_seq.py.
 //
 //   apb_write_read_seq : write a value, then read it back (32 pairs)
-//   apb_random_seq     : random mix; reads biased 2:1 to written addrs (64 items)
+//   apb_random_seq     : random mix; reads biased 4:1 to written addrs (64 items)
 //   apb_walking_seq    : directed first/last address and all-0/all-1 payloads
 // -----------------------------------------------------------------------------
 
@@ -37,7 +37,7 @@ class apb_write_read_seq extends uvm_sequence #(apb_seq_item);
 endclass
 
 
-// Random mix of reads and writes. Reads are biased 2:1 toward addresses that
+// Random mix of reads and writes. Reads are biased 4:1 toward addresses that
 // have already been written, so they mostly check stored data instead of
 // reading never-written locations (which return 0); writes stay fully random to
 // populate the address set. All randomization is constraint-based (no $urandom).
@@ -58,13 +58,13 @@ class apb_random_seq extends uvm_sequence #(apb_seq_item);
             start_item(item);
             if (!item.randomize())
                 `uvm_error("RAND", "apb_seq_item randomize failed")
-            // For reads, re-pick the address 2:1 in favour of a written one.
+            // For reads, re-pick the address 4:1 in favour of a written one.
             if (!item.write && written.size() > 0) begin
                 bit        hit_written;
                 int        idx;
                 bit [14:0] target;
                 if (!std::randomize(hit_written) with {
-                        hit_written dist { 1 := 2, 0 := 1 }; })
+                        hit_written dist { 1 := 4, 0 := 1 }; })
                     `uvm_error("RAND", "bias randomize failed")
                 if (hit_written) begin
                     if (!std::randomize(idx) with {

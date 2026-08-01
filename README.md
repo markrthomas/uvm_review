@@ -136,7 +136,7 @@ Everything runs from the repo root and degrades gracefully if a tool is absent.
 |-----------------|------------------------|--------------------------------------------------------------------|
 | Full regression | `make test`            | All three PyUVM tests (write-read, random, walking).               |
 | Directed        | `make test-write-read` | Write a value, read it back from the same address.                |
-| Random          | `make test-random`     | Random mix of reads and writes; reads biased 2:1 toward written addresses (fewer zero-data reads). |
+| Random          | `make test-random`     | Random mix of reads and writes; reads biased 4:1 toward written addresses (fewer zero-data reads). |
 | Walking         | `make test-walking`    | Directed first/last-address and all-0 / all-1 payload edge cases. |
 | Waves           | `make wave`            | Dump then open GTKWave with the curated `tb/apb_mem.gtkw` layout (`make waves` just dumps). |
 | Lint            | `make lint`            | `iverilog -Wall` compile check + Verilator RTL lint.              |
@@ -191,7 +191,7 @@ Pick one directed scenario while iterating:
 
 ```bash
 make test-write-read     # write a byte, read it back from the same address
-make test-random         # 64 random reads/writes; reads biased 2:1 to written addrs
+make test-random         # 64 random reads/writes; reads biased 4:1 to written addrs
 make test-walking        # first/last address × all-0 / all-1 / patterned data
 ```
 
