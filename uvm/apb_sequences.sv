@@ -2,7 +2,7 @@
 // Stimulus sequences — one-for-one with tb/apb_seq.py.
 //
 //   apb_write_read_seq : write a value, then read it back (32 pairs)
-//   apb_random_seq     : fully random mix of reads and writes (64 items)
+//   apb_random_seq     : random mix; reads biased 2:1 to written addrs (64 items)
 //   apb_walking_seq    : directed first/last address and all-0/all-1 payloads
 // -----------------------------------------------------------------------------
 
@@ -37,7 +37,10 @@ class apb_write_read_seq extends uvm_sequence #(apb_seq_item);
 endclass
 
 
-// Fully random mix of reads and writes.
+// Random mix of reads and writes. Reads are biased 2:1 toward addresses that
+// have already been written, so they mostly check stored data instead of
+// reading never-written locations (which return 0); writes stay fully random to
+// populate the address set. All randomization is constraint-based (no $urandom).
 class apb_random_seq extends uvm_sequence #(apb_seq_item);
     `uvm_object_utils(apb_random_seq)
 
@@ -49,12 +52,31 @@ class apb_random_seq extends uvm_sequence #(apb_seq_item);
 
     task body();
         apb_seq_item item;
+        bit [14:0]   written[$];
         for (int unsigned i = 0; i < num; i++) begin
             item = apb_seq_item::type_id::create("item");
             start_item(item);
             if (!item.randomize())
                 `uvm_error("RAND", "apb_seq_item randomize failed")
+            // For reads, re-pick the address 2:1 in favour of a written one.
+            if (!item.write && written.size() > 0) begin
+                bit        hit_written;
+                int        idx;
+                bit [14:0] target;
+                if (!std::randomize(hit_written) with {
+                        hit_written dist { 1 := 2, 0 := 1 }; })
+                    `uvm_error("RAND", "bias randomize failed")
+                if (hit_written) begin
+                    if (!std::randomize(idx) with {
+                            idx inside { [0:written.size()-1] }; })
+                        `uvm_error("RAND", "index randomize failed")
+                    target = written[idx];
+                    if (!item.randomize() with { write == 1'b0; addr == target; })
+                        `uvm_error("RAND", "apb_seq_item randomize failed")
+                end
+            end
             finish_item(item);
+            if (item.write) written.push_back(item.addr);
         end
     endtask
 endclass

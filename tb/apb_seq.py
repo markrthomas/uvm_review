@@ -29,18 +29,36 @@ class ApbWriteReadSeq(uvm_sequence):
 
 
 class ApbRandomSeq(uvm_sequence):
-    """Fully random mix of reads and writes."""
+    """Random mix of reads and writes. Reads are biased 2:1 toward addresses
+    that have already been written, so they mostly check stored data instead of
+    reading never-written locations (which return 0); writes stay fully random
+    to populate the address set."""
 
     def __init__(self, name="ApbRandomSeq", num=64):
         super().__init__(name)
         self.num = num
 
     async def body(self):
+        written = []
         for _ in range(self.num):
-            item = ApbSeqItem()
-            item.randomize()
+            write = bool(random.getrandbits(1))
+            if write:
+                item = ApbSeqItem("wr",
+                                  addr=random.randint(0, ADDR_MASK),
+                                  data=random.randint(0, DATA_MASK),
+                                  write=True)
+            else:
+                # 2:1 in favour of an already-written address; fall back to a
+                # fresh random one (and always when nothing is written yet).
+                if written and random.random() < 2 / 3:
+                    addr = random.choice(written)
+                else:
+                    addr = random.randint(0, ADDR_MASK)
+                item = ApbSeqItem("rd", addr=addr, write=False)
             await self.start_item(item)
             await self.finish_item(item)
+            if write:
+                written.append(item.addr)
 
 
 class ApbWalkingSeq(uvm_sequence):
