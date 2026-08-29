@@ -66,7 +66,7 @@ module apb_mem_lp #(
 
     // Raw (pre-isolation) read value: 0 unless this is a read ACCESS.
     logic [DATA_WIDTH-1:0] rdata_raw;
-    always_comb rdata_raw = (PSEL && !PWRITE) ? array_rdata : '0;
+    always_comb rdata_raw = (PSEL && PENABLE && !PWRITE) ? array_rdata : '0;
 
 `ifdef LP_EMULATE
     // Isolation strategy (apb_mem.upf: set_isolation ... -clamp_value 0):

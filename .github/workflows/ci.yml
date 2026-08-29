@@ -11,10 +11,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install RTL tools (Icarus + Verilator)
+      - name: Install RTL tools (Icarus + Verilator + shellcheck)
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends iverilog verilator
+          sudo apt-get install -y --no-install-recommends iverilog verilator shellcheck
 
       - uses: actions/setup-python@v5
         with:
@@ -30,6 +30,9 @@ jobs:
           iverilog -V | head -1
           verilator --version
           python -c "import cocotb, pyuvm; print('cocotb', cocotb.__version__, 'pyuvm', pyuvm.__version__)"
+
+      - name: Container & script plumbing checks
+        run: make check-docker
 
       # lint (iverilog + Verilator) + PyUVM regression + Verilator coverage,
       # as a single pass/fail gate. The SV/UVM flow (make uvm) is not run here:

@@ -54,7 +54,7 @@ class ApbBfm(metaclass=utility_classes.Singleton):
         await RisingEdge(self.dut.PCLK)
         while self.dut.PREADY.value != 1:
             await RisingEdge(self.dut.PCLK)
-        rdata = int(self.dut.PRDATA.value)
+        rdata = int(self.dut.PRDATA.value) if self.dut.PRDATA.value.is_resolvable else 0
 
         # Return to IDLE.
         await FallingEdge(self.dut.PCLK)
@@ -77,11 +77,13 @@ class ApbBfm(metaclass=utility_classes.Singleton):
             await RisingEdge(self.dut.PCLK)
             if (self.dut.PSEL.value == 1 and self.dut.PENABLE.value == 1
                     and self.dut.PREADY.value == 1):
+                rdata = (int(self.dut.PRDATA.value)
+                         if self.dut.PRDATA.value.is_resolvable else 0)
                 await self.monitor_queue.put((
                     int(self.dut.PADDR.value),
                     bool(self.dut.PWRITE.value),
                     int(self.dut.PWDATA.value),
-                    int(self.dut.PRDATA.value),
+                    rdata,
                 ))
 
     # -- driver-facing helpers ------------------------------------------------

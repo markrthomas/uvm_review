@@ -1,6 +1,7 @@
 NOTES.md
 # editor swap files
 *.swp
+.*.swp
 *.swo
 sim_build/
 tb/sim_build/

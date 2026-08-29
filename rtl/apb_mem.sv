@@ -63,7 +63,7 @@ module apb_mem #(
     // Combinational read: PRDATA is valid throughout the ACCESS phase and is
     // sampled by the master on the completing PCLK edge.
     always_comb begin
-        if (PSEL && !PWRITE)
+        if (PSEL && PENABLE && !PWRITE)
             PRDATA = mem[PADDR];
         else
             PRDATA = '0;

@@ -78,21 +78,29 @@ class ApbScoreboard(uvm_component):
     def analysis_export(self):
         return self.fifo.analysis_export
 
+    def process_transaction(self, tr):
+        if tr.write:
+            self.model[tr.addr] = tr.data
+        else:
+            self.reads += 1
+            expected = self.model.get(tr.addr, 0)
+            if tr.rdata != expected:
+                self.errors += 1
+                self.logger.error(
+                    f"MISMATCH @0x{tr.addr:04X}: "
+                    f"got 0x{tr.rdata:02X} exp 0x{expected:02X}")
+            else:
+                self.logger.info(f"MATCH {tr}")
+
+    async def run_phase(self):
+        while True:
+            tr = await self.port.get()
+            self.process_transaction(tr)
+
     def check_phase(self):
         while self.port.can_get():
             _, tr = self.port.try_get()
-            if tr.write:
-                self.model[tr.addr] = tr.data
-            else:
-                self.reads += 1
-                expected = self.model.get(tr.addr, 0)
-                if tr.rdata != expected:
-                    self.errors += 1
-                    self.logger.error(
-                        f"MISMATCH @0x{tr.addr:04X}: "
-                        f"got 0x{tr.rdata:02X} exp 0x{expected:02X}")
-                else:
-                    self.logger.info(f"MATCH {tr}")
+            self.process_transaction(tr)
         self.logger.info(
             f"Scoreboard: {self.reads} reads checked, {self.errors} errors")
         assert self.errors == 0, f"{self.errors} scoreboard mismatch(es)"
