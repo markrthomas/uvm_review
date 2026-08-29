@@ -23,6 +23,13 @@ UVM_DIR   := uvm
 LP_DIR    := lp
 LP_RESULTS := $(LP_DIR)/results.xml
 
+# Docker / Railway: license-free UVM on Verilator in a container (see below).
+DOCKER         ?= docker
+RAILWAY        ?= railway
+UVM_IMAGE      ?= apb-mem-uvm:latest
+UVM_DOCKERFILE := Dockerfile
+RAILWAY_WATCH  := docker/railway-watch.sh
+
 IVERILOG_FLAGS ?= -g2012 -Wall
 VERILATOR_LINT_FLAGS ?= --lint-only -Wall -Wno-DECLFILENAME
 
@@ -38,6 +45,7 @@ COV_MIN ?= 100
 .PHONY: default help \
 	test test-all test-write-read test-random test-walking \
 	waves wave check regress ci coverage uvm lp \
+	docker-uvm-build docker-uvm-run railway-deploy railway-logs railway-run check-docker \
 	lint _lint_iverilog _lint_verilator \
 	clean
 
@@ -60,6 +68,15 @@ help:
 	@echo ""
 	@echo "  Low-power / UPF:"
 	@echo "    make lp                # UPF-emulated power-cycle test (isolation/retention/corruption)"
+	@echo ""
+	@echo "  Docker / Railway (license-free UVM-on-Verilator in a container):"
+	@echo "    make docker-uvm-build            # build the UVM image (Verilator 5.050 from source)"
+	@echo "    make docker-uvm-run              # build + run the full UVM gate locally"
+	@echo "    make railway-run                 # ONE-SHOT: login/link + up + wait for PASS/FAIL"
+	@echo "    make railway-deploy              # railway up only (needs: railway login && railway link)"
+	@echo "    make railway-logs                # tail the Railway deployment logs"
+	@echo "    make check-docker                # offline plumbing tests (no Docker build, no network)"
+	@echo "    UVM_IMAGE=name:tag  DOCKER=podman  RAILWAY=railway"
 	@echo ""
 	@echo "  Gates:"
 	@echo "    make lint              # iverilog -Wall compile check + Verilator RTL lint"
@@ -152,6 +169,52 @@ lp:
 	@test -f $(LP_RESULTS) || { echo "[LP] no results.xml (sim did not run)"; exit 1; }
 	@if grep -Eq "<failure|<error" $(LP_RESULTS); then echo "[LP] FAILED (see log above)"; exit 1; fi
 	@echo "[LP] passed"
+
+# --- Docker / Railway: license-free UVM on Verilator in a container ----------
+# Builds an image with UVM-capable Verilator 5.050 + the bundled UVM library
+# (root Dockerfile) whose entrypoint runs the full UVM gate (make -C uvm/vlt ci).
+# Useful where the local host lacks the RAM for the --binary build: run it on
+# Railway (or any container host) instead. See uvm/vlt/README.md.
+
+docker-uvm-build:
+	@command -v $(DOCKER) >/dev/null 2>&1 || { echo "[DOCKER] '$(DOCKER)' not found; install Docker or Podman (or set DOCKER=)"; exit 127; }
+	$(DOCKER) build -f $(UVM_DOCKERFILE) -t $(UVM_IMAGE) .
+
+# NOTE: the --binary build is RAM-heavy; on a small (~8 GB) host this can OOM.
+# The point of this path is to run it on a RAM-generous host (Railway).
+docker-uvm-run: docker-uvm-build
+	$(DOCKER) run --rm $(UVM_IMAGE)
+
+railway-deploy:
+	@command -v $(RAILWAY) >/dev/null 2>&1 || { echo "[RAILWAY] '$(RAILWAY)' CLI not found: https://docs.railway.com/guides/cli"; exit 127; }
+	@echo "[RAILWAY] Deploying via $(UVM_DOCKERFILE) (.railway/railway.ts). Requires: railway login && railway link."
+	$(RAILWAY) up
+
+railway-logs:
+	@command -v $(RAILWAY) >/dev/null 2>&1 || { echo "[RAILWAY] '$(RAILWAY)' CLI not found: https://docs.railway.com/guides/cli"; exit 127; }
+	$(RAILWAY) logs
+
+# One command, end to end: ensure the CLI is present + authenticated + linked,
+# upload/build the image and run the UVM gate in the cloud, then watch the run to
+# completion.  First run prompts for login/link (interactive); afterwards it is
+# non-interactive.  BUILD_JOBS=1 is baked into the image, so no variables need
+# setting; the ~8 GB RAM floor is a one-time dashboard setting (the service's
+# Settings -> Resource Limits) — see uvm/vlt/README.md.  A green run ends with a
+# `PASS:` line and the container exits 0 (Railway: "Completed").
+railway-run:
+	@command -v $(RAILWAY) >/dev/null 2>&1 || { echo "[RAILWAY] '$(RAILWAY)' CLI not found: https://docs.railway.com/guides/cli"; exit 127; }
+	@$(RAILWAY) whoami   >/dev/null 2>&1 || $(RAILWAY) login
+	@$(RAILWAY) status   >/dev/null 2>&1 || $(RAILWAY) link
+	@echo "[RAILWAY] Uploading + building $(UVM_DOCKERFILE), then running the UVM gate (build logs at the URL below)..."
+	$(RAILWAY) up --detach
+	@echo "[RAILWAY] Deploy queued; watching for completion — returns to your prompt with PASS/FAIL when the run ends."
+	@RAILWAY='$(RAILWAY)' bash $(RAILWAY_WATCH)
+
+# Offline tests for the Docker/Railway plumbing (no Docker build, no network):
+# script syntax, railway-watch classifier self-test, entrypoint dispatch/preflight
+# with a mocked make, and a railway-run parse check.  Run in CI (docker-plumbing.yml).
+check-docker:
+	bash docker/plumbing-test.sh
 
 # --- gates -------------------------------------------------------------------
 

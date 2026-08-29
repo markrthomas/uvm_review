@@ -19,8 +19,11 @@ V=~/verilator/bin/verilator ; U=~/verilator/test_regress/t/uvm
 ( unset VERILATOR_ROOT; make -C uvm/vlt lint       VERILATOR=$V UVM_HOME=$U )  # RAM-safe (~290 MB)
 ( unset VERILATOR_ROOT; make -C uvm/vlt write_read  VERILATOR=$V UVM_HOME=$U )  # build + run
 ```
-Targets: `lint`; `write_read` (default), `random`, `walking`, `all`; `clean`.
-One `--binary` build serves all three tests (selected via `+UVM_TESTNAME`).
+Targets: `lint`; `write_read` (default), `random`, `walking`, `all`; `ci`;
+`clean`. One `--binary` build serves all three tests (selected via
+`+UVM_TESTNAME`). `ci` is the containerized gate — lint + one build + every top,
+failing on any `UVM_ERROR`/`UVM_FATAL` (read from the report summary, since the
+`--binary` exe exits 0 regardless).
 
 ## RAM note — build in CI, not on a small box
 `--lint-only` is cheap (~290 MB). The full `--binary` build (large generated
@@ -28,6 +31,23 @@ C++) OOMs a RAM-constrained host. Run it in CI
 (`.github/workflows/verilator-uvm.yml` builds Verilator 5.050 from source and
 runs lint + `write_read` on a GitHub runner), or locally only with
 `BUILD_JOBS=1` under a `ulimit -v` guard.
+
+## Container / Railway (off-box, RAM-generous host)
+The repo root ships a license-free UVM image (`Dockerfile`) whose entrypoint runs
+`make -C uvm/vlt ci`. Use it where the local host lacks the RAM for the
+`--binary` build:
+```sh
+make docker-uvm-build      # build the image (Verilator 5.050 from source)
+make docker-uvm-run        # build + run the full UVM gate locally
+make railway-run           # one-shot: login/link + deploy + wait for PASS/FAIL
+make check-docker          # offline plumbing tests (no Docker build, no network)
+```
+`docker/entrypoint.sh` runs a **resource preflight** before the heavy build and
+aborts (exit 3) below a **6144 MB** floor — the UVM precompiled-header compile
+OOM-kills `cc1plus` under it. On Railway, raise the service's memory to ~8 GB
+(Settings → Resource Limits); the service is a run-to-completion **batch job**
+(`restartPolicyType: NEVER` in `.railway/railway.ts`), not an always-on service.
+`BUILD_JOBS=1` is baked into the image (each PCH compile needs several GB).
 
 ## `uvm_macros.svh`
 A required, tracked empty include-shim: the sources `` `include "uvm_macros.svh" ``

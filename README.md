@@ -42,6 +42,9 @@ flowchart LR
 - `uvm/` — SystemVerilog UVM testbench mirroring the PyUVM TB (`uvm/Makefile`)
 - `lp/` — low-power / UPF example: golden `apb_mem.upf` + a runnable emulation (`make lp`)
 - `sim/` — Verilator C++ coverage harness (`sim_main.cpp`)
+- `Dockerfile`, `docker/`, `.railway/` — containerized UVM-on-Verilator gate for
+  off-box / cloud (Railway) runs; `.railway/railway.ts` is Railway Infrastructure
+  as Code — see `uvm/vlt/README.md`
 - `Makefile` — standard DV gate targets (delegates the cocotb run to `tb/`)
 
 The testbench is layered so only the BFM touches DUT signals:
@@ -146,6 +149,7 @@ Everything runs from the repo root and degrades gracefully if a tool is absent.
 | CI              | `make ci`              | Lint + regression + coverage as a single pass/fail gate.          |
 | SV UVM          | `make uvm`             | SystemVerilog UVM TB (VCS/Xcelium/Questa); skips cleanly if unlicensed. |
 | Low-power / UPF | `make lp`              | UPF-emulated power-cycle test: isolation, retention, and power-down corruption (`lp/`). Folded into `make regress`/`make ci`. |
+| Container / cloud | `make docker-uvm-run` / `make railway-run` | Run the full license-free UVM gate off-box in Docker or on Railway (one-shot deploy that returns PASS/FAIL); `make check-docker` runs the offline plumbing tests. |
 
 Run `make help` for the full target list.
 

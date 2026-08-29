@@ -51,7 +51,7 @@ define run
 	$(OBJ)/apb_tb_top/Vapb_tb_top $(UVM_PLUSARGS) +UVM_TESTNAME=$(1)
 endef
 
-.PHONY: all build write_read random walking lint clean
+.PHONY: all build write_read random walking lint ci clean
 
 # One --binary build; the top selects the test at run time via +UVM_TESTNAME.
 # `build` is phony but make runs it once per invocation, so `make all` builds once.
@@ -74,6 +74,29 @@ LINTFLAGS ?= --lint-only --timing -Wno-fatal -Wno-COVERIGN -Wno-TIMESCALEMOD
 lint:
 	$(VERILATOR) $(LINTFLAGS) --top-module apb_tb_top $(INCS) \
 	  $(UVM_HDR) $(SRCS)
+
+# ci: the license-free UVM gate run by the container/Railway entrypoint — lint,
+# one --binary build, then every top, failing on any UVM_ERROR/UVM_FATAL.
+# Verilator's --binary exe exits 0 even when UVM's report server counts errors,
+# so pass/fail is read from the "UVM_ERROR : N" report-summary line (and the
+# line's presence proves the run actually reached report_phase).
+ci: lint build
+	@rc=0; \
+	for t in apb_write_read_test apb_random_test apb_walking_test; do \
+	  echo "=== [uvm/vlt] $$t ==="; \
+	  log=$(OBJ)/apb_tb_top/$$t.log; \
+	  $(OBJ)/apb_tb_top/Vapb_tb_top $(UVM_PLUSARGS) +UVM_TESTNAME=$$t 2>&1 | tee $$log; \
+	  if grep -qE 'UVM_(ERROR|FATAL) :[[:space:]]+[1-9]' $$log; then \
+	    echo "[uvm/vlt] $$t: UVM_ERROR/UVM_FATAL > 0"; rc=1; \
+	  elif ! grep -qE 'UVM_ERROR :[[:space:]]+0' $$log; then \
+	    echo "[uvm/vlt] $$t: no 'UVM_ERROR : 0' summary (run did not finish cleanly)"; rc=1; \
+	  else \
+	    echo "[uvm/vlt] $$t OK"; \
+	  fi; \
+	done; \
+	if [ $$rc -eq 0 ]; then echo "PASS: uvm/vlt UVM gate (all tops, 0 UVM_ERROR)"; \
+	else echo "FAIL: uvm/vlt UVM gate"; fi; \
+	exit $$rc
 
 clean:
 	rm -rf $(OBJ)
