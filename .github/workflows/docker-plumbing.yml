@@ -29,7 +29,7 @@ jobs:
       - name: Verify Railway config plan
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run:
+        run: |
           if [ -n "${RAILWAY_TOKEN:-}" ]; then
             railway config plan --out railway-plan.json
           else
