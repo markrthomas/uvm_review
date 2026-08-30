@@ -23,6 +23,9 @@ jobs:
       - name: Install shellcheck
         run: sudo apt-get update && sudo apt-get install -y shellcheck
 
+      - name: Install Railway TypeScript SDK
+        run: npm install railway
+
       - name: Install Railway CLI
         run: npm install -g @railway/cli && railway --version
 
