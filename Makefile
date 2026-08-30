@@ -26,6 +26,9 @@ LP_RESULTS := $(LP_DIR)/results.xml
 # Docker / Railway: license-free UVM on Verilator in a container (see below).
 DOCKER         ?= docker
 RAILWAY        ?= railway
+RAILWAY_PROJECT ?= verilator-uvm
+RAILWAY_SERVICE ?= verilator-uvm
+RAILWAY_ENVIRONMENT ?= production
 UVM_IMAGE      ?= apb-mem-uvm:latest
 UVM_DOCKERFILE := Dockerfile
 RAILWAY_WATCH  := docker/railway-watch.sh
@@ -45,7 +48,7 @@ COV_MIN ?= 100
 .PHONY: default help \
 	test test-all test-write-read test-random test-walking \
 	waves wave check regress ci coverage uvm lp \
-	docker-uvm-build docker-uvm-run railway-deploy railway-logs railway-run check-docker \
+	docker-uvm-build docker-uvm-run railway-config railway-deploy railway-logs railway-run check-docker \
 	lint _lint_iverilog _lint_verilator \
 	clean
 
@@ -72,10 +75,12 @@ help:
 	@echo "  Docker / Railway (license-free UVM-on-Verilator in a container):"
 	@echo "    make docker-uvm-build            # build the UVM image (Verilator 5.050 from source)"
 	@echo "    make docker-uvm-run              # build + run the full UVM gate locally"
-	@echo "    make railway-run                 # ONE-SHOT: login/link + up + wait for PASS/FAIL"
-	@echo "    make railway-deploy              # railway up only (needs: railway login && railway link)"
+	@echo "    make railway-config              # apply .railway/railway.ts project settings"
+	@echo "    make railway-run                 # ONE-SHOT: link + apply settings + deploy + wait for PASS/FAIL"
+	@echo "    make railway-deploy              # apply settings + deploy (needs: railway login)"
 	@echo "    make railway-logs                # tail the Railway deployment logs"
 	@echo "    make check-docker                # offline plumbing tests (no Docker build, no network)"
+	@echo "    RAILWAY_PROJECT=verilator-uvm RAILWAY_SERVICE=verilator-uvm"
 	@echo "    UVM_IMAGE=name:tag  DOCKER=podman  RAILWAY=railway"
 	@echo ""
 	@echo "  Gates:"
@@ -185,28 +190,34 @@ docker-uvm-build:
 docker-uvm-run: docker-uvm-build
 	$(DOCKER) run --rm $(UVM_IMAGE)
 
-railway-deploy:
+railway-config:
 	@command -v $(RAILWAY) >/dev/null 2>&1 || { echo "[RAILWAY] '$(RAILWAY)' CLI not found: https://docs.railway.com/guides/cli"; exit 127; }
-	@echo "[RAILWAY] Deploying via $(UVM_DOCKERFILE) (.railway/railway.ts). Requires: railway login && railway link."
-	$(RAILWAY) up
+	@test -d node_modules/railway || { echo "[RAILWAY] Railway IaC SDK is missing; run 'npm install' first."; exit 127; }
+	@echo "[RAILWAY] Applying $(RAILWAY_PROJECT)/$(RAILWAY_SERVICE) settings from .railway/railway.ts..."
+	@# Railway's TypeScript evaluator interprets Make's exported $_ as its CLI path.
+	env -u _ $(RAILWAY) config apply --yes
+
+railway-deploy: railway-config
+	@echo "[RAILWAY] Deploying $(UVM_DOCKERFILE) to $(RAILWAY_PROJECT)/$(RAILWAY_SERVICE)..."
+	$(RAILWAY) up --service $(RAILWAY_SERVICE) --environment $(RAILWAY_ENVIRONMENT)
 
 railway-logs:
 	@command -v $(RAILWAY) >/dev/null 2>&1 || { echo "[RAILWAY] '$(RAILWAY)' CLI not found: https://docs.railway.com/guides/cli"; exit 127; }
-	$(RAILWAY) logs
+	$(RAILWAY) logs --service $(RAILWAY_SERVICE) --environment $(RAILWAY_ENVIRONMENT)
 
-# One command, end to end: ensure the CLI is present + authenticated + linked,
-# upload/build the image and run the UVM gate in the cloud, then watch the run to
-# completion.  First run prompts for login/link (interactive); afterwards it is
-# non-interactive.  BUILD_JOBS=1 is baked into the image, so no variables need
-# setting; the ~8 GB RAM floor is a one-time dashboard setting (the service's
-# Settings -> Resource Limits) — see uvm/vlt/README.md.  A green run ends with a
-# `PASS:` line and the container exits 0 (Railway: "Completed").
+# One command, end to end: authenticate, link the named project/service, apply
+# IaC, upload/build the image, and watch the UVM gate to completion. BUILD_JOBS=1
+# is baked into the image, so no variables need setting; the ~8 GB RAM floor is a
+# one-time dashboard setting (the service's Settings -> Resource Limits) — see
+# uvm/vlt/README.md. A green run ends with a `PASS:` line and the container exits
+# 0 (Railway: "Completed").
 railway-run:
 	@command -v $(RAILWAY) >/dev/null 2>&1 || { echo "[RAILWAY] '$(RAILWAY)' CLI not found: https://docs.railway.com/guides/cli"; exit 127; }
 	@$(RAILWAY) whoami   >/dev/null 2>&1 || $(RAILWAY) login
-	@$(RAILWAY) status   >/dev/null 2>&1 || $(RAILWAY) link
+	@$(RAILWAY) link --project $(RAILWAY_PROJECT) --service $(RAILWAY_SERVICE) --environment $(RAILWAY_ENVIRONMENT)
+	@$(MAKE) railway-config RAILWAY='$(RAILWAY)' RAILWAY_PROJECT='$(RAILWAY_PROJECT)' RAILWAY_SERVICE='$(RAILWAY_SERVICE)' RAILWAY_ENVIRONMENT='$(RAILWAY_ENVIRONMENT)'
 	@echo "[RAILWAY] Uploading + building $(UVM_DOCKERFILE), then running the UVM gate (build logs at the URL below)..."
-	$(RAILWAY) up --detach
+	$(RAILWAY) up --detach --service $(RAILWAY_SERVICE) --environment $(RAILWAY_ENVIRONMENT)
 	@echo "[RAILWAY] Deploy queued; watching for completion — returns to your prompt with PASS/FAIL when the run ends."
 	@RAILWAY='$(RAILWAY)' bash $(RAILWAY_WATCH)
 

@@ -26,9 +26,9 @@ NOISE='Config as Code|Migrate:|Existing files keep working'
 classify() {
   logs="$1"; st="$2"
 
-  # While the image is still building, runtime logs are empty or stale — don't
+  # While the image is still building or deploying, runtime logs are empty or stale — don't
   # let a previous deployment's exit line trigger a false verdict.
-  case "$st" in *Building*) echo "RUNNING|building image"; return;; esac
+  case "$st" in *Building*|*Initializing*|*Deploying*|*Queued*) echo "RUNNING|building/deploying image"; return;; esac
 
   code="$(printf '%s\n' "$logs" | grep -oE '\[exited with code [0-9]+\]' | tail -1 | grep -oE '[0-9]+')"
   if [ -n "$code" ]; then
@@ -66,6 +66,7 @@ self_test() {
 === UVM gate FAILED (rc=2) ==="                         "status: ● Completed"
   check preflight       FAIL    "[preflight] ERROR: 1024 MB is below the 6144 MB floor" "status: ● Completed"
   check building-stale  RUNNING "PASS: uvm/vlt UVM gate"$'\n'"[exited with code 0]"     "status: ● Online · Building (4s)"
+  check init-stale      RUNNING "PASS: uvm/vlt UVM gate"$'\n'"[exited with code 0]"     "status: ● Initializing"
   check running-online  RUNNING "UVM_INFO ... running"                                   "status: ● Online"
   check build-failed    FAIL    ""                                                       "status: ● Failed"
   check completed-nolog PASS    "some truncated output"                                  "status: ● Completed"
@@ -80,8 +81,8 @@ echo "[watch] Ctrl-C is safe — it only stops watching; the cloud run keeps goi
 end=$(( $(date +%s) + TIMEOUT_S ))
 last=""
 while :; do
-  logs="$(timeout 25 "$RAILWAY" logs 2>&1 | grep -vE "$NOISE")"
-  st="$(timeout 20 "$RAILWAY" status 2>&1 | awk '/Linked service/{f=1} f&&/status:/{sub(/^[[:space:]]*/,"");print;exit}')"
+  logs="$(timeout 15 "$RAILWAY" logs --latest --lines 300 2>&1 | grep -vE "$NOISE" || true)"
+  st="$(timeout 15 "$RAILWAY" status 2>&1 | awk '/Linked service/{f=1} f&&/status:/{sub(/^[[:space:]]*/,"");print;exit}' || true)"
   res="$(classify "$logs" "$st")"; verdict="${res%%|*}"; reason="${res#*|}"
   if [ "$verdict" != RUNNING ]; then
     echo

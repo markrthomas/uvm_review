@@ -1,0 +1,40 @@
+# Keep the Railway upload payload small and clean
+.git
+.github
+.railway
+.claude
+.vscode
+node_modules
+
+# Build artifacts & simulation directories
+**/obj
+**/obj_dir*
+sim/obj_dir_cov
+**/sim_build
+tb/sim_build
+lp/sim_build
+
+# Python bytecode & cache
+**/__pycache__
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+
+# Waveforms, coverage, and simulation logs
+*.vcd
+*.fst
+*.info
+*.dat
+*.log
+results.xml
+*.pdf
+
+# Local tooling & temporary files
+.DS_Store
+.venv
+venv
+.mcp.json
+NOTES.md
+.codex
+foo

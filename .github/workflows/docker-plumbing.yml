@@ -23,5 +23,16 @@ jobs:
       - name: Install shellcheck
         run: sudo apt-get update && sudo apt-get install -y shellcheck
 
+      - name: Install Railway CLI
+        run: npm install -g railway
+
+      - name: Verify Railway config plan
+        if: ${{ secrets.RAILWAY_TOKEN != '' }}
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          railway login --token "$RAILWAY_TOKEN"
+          railway config plan --out railway-plan.json
+
       - name: Plumbing checks (scripts + entrypoint dispatch + watcher self-test)
         run: make check-docker
