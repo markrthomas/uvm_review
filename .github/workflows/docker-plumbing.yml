@@ -24,7 +24,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y shellcheck
 
       - name: Install Railway CLI
-        run: npm install -g railway
+        run: npm install -g @railway/cli && railway --version
 
       - name: Verify Railway config plan
         env:
