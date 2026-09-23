@@ -15,7 +15,7 @@
 #   SINGLE=1           : the single-file variant apb_tb_single.sv
 # =============================================================================
 
-TEST   ?= apb_write_read_test
+TEST   ?= apb_random_test
 WAVES  ?=
 SINGLE ?= 0
 

@@ -63,8 +63,8 @@ help:
 	@echo "    make test-write-read   # write-then-read-back sequence"
 	@echo "    make test-random       # constrained-random read/write mix"
 	@echo "    make test-walking      # directed address/data edge cases"
-	@echo "    make waves             # dump tb/sim_build/apb_mem.fst (all tests; TEST=<name> for one)"
-	@echo "    make wave              # open the dump in GTKWave (add TEST=<name> for a single test)"
+	@echo "    make waves             # dump tb/sim_build/apb_mem.fst (default: random_test; TEST=<name>, or TEST=all)"
+	@echo "    make wave              # open the dump in GTKWave (default: random_test; TEST=<name>, or TEST=all)"
 	@echo ""
 	@echo "  SystemVerilog UVM (license-gated; skips cleanly if no simulator):"
 	@echo "    make uvm               # run the SV/UVM TB under uvm/ (VCS/Xcelium/Questa)"
@@ -127,18 +127,20 @@ test-random:
 test-walking:
 	$(call run_one_test,walking_test)
 
-# Waveform dump. By default all three tests run in one sim (viewing only, not a
-# pass/fail gate); TEST=<name> dumps just one, e.g. `make waves TEST=random_test`.
-# cocotb's Icarus dump module is only compiled into a FRESH sim_build, so wipe it
-# first — a stale build silently skips the dump and leaves no/empty FST.
+# Waveform dump. Defaults to the random test (TEST=random_test); TEST=<name>
+# dumps a different single test, and TEST=all dumps all three tests in one sim
+# (viewing only, not a pass/fail gate). cocotb's Icarus dump module is only
+# compiled into a FRESH sim_build, so wipe it first — a stale build silently
+# skips the dump and leaves no/empty FST.
 WAVE_TESTS := write_read_test random_test walking_test
+WAVE_TEST  := $(if $(TEST),$(TEST),random_test)
 
 waves:
-	@if [ -n "$(TEST)" ] && ! echo " $(WAVE_TESTS) " | grep -q " $(TEST) "; then \
-		echo "[WAVES] unknown TEST='$(TEST)' — choose one of: $(WAVE_TESTS)"; exit 1; fi
+	@if [ "$(WAVE_TEST)" != "all" ] && ! echo " $(WAVE_TESTS) " | grep -q " $(WAVE_TEST) "; then \
+		echo "[WAVES] unknown TEST='$(WAVE_TEST)' — choose one of: $(WAVE_TESTS) all"; exit 1; fi
 	rm -rf $(TB_DIR)/sim_build
-	$(MAKE) -C $(TB_DIR) WAVES=1 $(if $(TEST),TESTCASE=$(TEST),)
-	@echo "[WAVES] wrote $(FST)$(if $(TEST), (single test: $(TEST)),)"
+	$(MAKE) -C $(TB_DIR) WAVES=1 $(if $(filter all,$(WAVE_TEST)),,TESTCASE=$(WAVE_TEST))
+	@echo "[WAVES] wrote $(FST) (test: $(WAVE_TEST))"
 
 # Open the dump in GTKWave with the curated signal layout (grouped clock/reset,
 # APB request, APB response; buses in hex). ALWAYS regenerates a fresh dump via
@@ -152,7 +154,7 @@ wave:
 		exit 0; \
 	fi; \
 	$(MAKE) --no-print-directory waves $(if $(TEST),TEST=$(TEST),); \
-	echo "[WAVE] opening $(FST) in GTKWave (layout: $(GTKW))$(if $(TEST), — single test: $(TEST),)"; \
+	echo "[WAVE] opening $(FST) in GTKWave (layout: $(GTKW)) — test: $(WAVE_TEST)"; \
 	exec gtkwave $(FST) $(GTKW)
 
 # SystemVerilog UVM testbench (mirrors the PyUVM TB). Needs a UVM-capable

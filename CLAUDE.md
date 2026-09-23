@@ -8,13 +8,13 @@ License-free way to run this repo's UVM env under **Verilator 5.050** (no
 VCS/Xcelium/Questa), added 2026-08-28. **Passing** in CI
 (`.github/workflows/verilator-uvm.yml`): builds Verilator from source, installs
 **z3** (Verilator's SMT solver for `randomize()` — without it constrained
-randomize returns 0) + `ccache`, then lint + the `--binary` `write_read` smoke test.
+randomize returns 0) + `ccache`, then lint + the `--binary` `random` smoke test.
 
 Local (lint is RAM-safe; the `--binary` build wants a big-RAM host or CI):
 ```sh
 V=~/verilator/bin/verilator ; U=~/verilator/test_regress/t/uvm
 ( unset VERILATOR_ROOT; make -C uvm/vlt lint   VERILATOR=$V UVM_HOME=$U )
-( unset VERILATOR_ROOT; make -C uvm/vlt write_read VERILATOR=$V UVM_HOME=$U )
+( unset VERILATOR_ROOT; make -C uvm/vlt random VERILATOR=$V UVM_HOME=$U )
 ```
 In an OSS-off shell (`OSS_CAD=0` / `oss-cad-off`) Verilator 5.050 is on `PATH`,
 `VERILATOR_ROOT` is unset, and `UVM_HOME` is exported — the vars/`unset` above are
