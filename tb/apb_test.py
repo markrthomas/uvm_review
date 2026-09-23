@@ -12,7 +12,7 @@ from apb_seq import ApbRandomSeq, ApbWalkingSeq, ApbWriteReadSeq
 class BaseTest(uvm_test):
     """Builds the env and handles clock + reset via the BFM."""
 
-    seq_cls = ApbWriteReadSeq
+    seq_cls = ApbRandomSeq
 
     def build_phase(self):
         self.env = ApbEnv("env", self)

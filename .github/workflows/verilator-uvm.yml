@@ -68,9 +68,9 @@ jobs:
           VERILATOR="$VERILATOR_PREFIX/bin/verilator" \
           UVM_HOME="$VERILATOR_PREFIX/uvm"
 
-    - name: Build and run UVM smoke test (apb_write_read_test)
+    - name: Build and run UVM smoke test (apb_random_test)
       run: |
-        make -C uvm/vlt write_read \
+        make -C uvm/vlt random \
           VERILATOR="$VERILATOR_PREFIX/bin/verilator" \
           UVM_HOME="$VERILATOR_PREFIX/uvm" \
           BUILD_JOBS="$(nproc)"

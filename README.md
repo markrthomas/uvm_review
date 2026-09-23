@@ -142,7 +142,7 @@ Everything runs from the repo root and degrades gracefully if a tool is absent.
 | Directed        | `make test-write-read` | Write a value, read it back from the same address.                |
 | Random          | `make test-random`     | Random mix of reads and writes; reads biased 4:1 toward written addresses (fewer zero-data reads). |
 | Walking         | `make test-walking`    | Directed first/last-address and all-0 / all-1 payload edge cases. |
-| Waves           | `make wave`            | Dump then open GTKWave with the curated `tb/apb_mem.gtkw` layout (`make waves` just dumps). |
+| Waves           | `make wave`            | Dump the random test then open GTKWave with the curated `tb/apb_mem.gtkw` layout (`make waves` just dumps; `TEST=<name>`/`TEST=all` picks a different test). |
 | Lint            | `make lint`            | `iverilog -Wall` compile check + Verilator RTL lint.              |
 | Coverage        | `make coverage`        | Verilator `--coverage` C++ harness → `sim/coverage.info` (lcov); fails below `COV_MIN` (default 100%). |
 | Gate            | `make check`           | Lint then the full regression.                                    |
@@ -206,8 +206,9 @@ Under the hood each sets `TESTCASE=<name>` for the cocotb runner.
 ### 4. Inspect waveforms
 
 ```bash
-make wave                     # dump (if needed) + open GTKWave with the curated layout
-make wave TEST=random_test    # dump & view just one test, not all three concatenated
+make wave                     # dump (if needed) + open GTKWave with the curated layout (default: random_test)
+make wave TEST=write_read_test # dump & view a different single test
+make wave TEST=all            # dump & view all three tests concatenated
 make waves                    # just (re)dump tb/sim_build/apb_mem.fst
 ```
 
@@ -215,9 +216,11 @@ make waves                    # just (re)dump tb/sim_build/apb_mem.fst
 (clock/reset, APB request, APB response) with the address/data buses in hex. It
 always rebuilds a fresh dump first — so a leftover `.fst` from a `make test`/`ci`
 run can't confuse it — and skips cleanly if GTKWave isn't installed. By default
-all three tests share one dump; `TEST=write_read_test` / `random_test` /
-`walking_test` dumps and views just that one. Look at `PSEL`/`PENABLE` for the
-SETUP→ACCESS handshake and `PREADY` held high (zero wait states).
+it dumps just `random_test` (64 constrained-random reads/writes, reads biased
+4:1 toward written addresses); `TEST=write_read_test` / `walking_test` dumps
+and views a different single test, and `TEST=all` shares one dump across all
+three. Look at `PSEL`/`PENABLE` for the SETUP→ACCESS handshake and `PREADY`
+held high (zero wait states).
 
 ### 5. Measure coverage
 
@@ -242,9 +245,9 @@ make ci                  # lint + full regression + coverage, one pass/fail gate
 ### 7. The SystemVerilog UVM testbench
 
 ```bash
-make uvm                       # multi-file set, default write-read test
-make uvm TEST=apb_random_test  # pick a test
-make uvm SINGLE=1              # build the single-file variant instead
+make uvm                           # multi-file set, default random test
+make uvm TEST=apb_write_read_test  # pick a different test
+make uvm SINGLE=1                  # build the single-file variant instead
 ```
 
 On this host (no UVM simulator licensed) `make uvm` prints a skip and exits 0.
@@ -302,10 +305,10 @@ directly (A) or by including your own files (B).
      Siemens Questa, Cadence Xcelium, or Synopsys VCS.
    - **Run options**: add **`+UVM_TESTNAME=apb_write_read_test`** — this is the
      reliable way to select the test (swap in `apb_random_test` or
-     `apb_walking_test` for the others). The current `apb_tb_top` also defaults
-     to the write-read test via `run_test("apb_write_read_test")`, so an
-     up-to-date paste runs even with this box empty; setting it explicitly means
-     you don't depend on the pasted file being current.
+     `apb_walking_test` for the others). `apb_tb_top` defaults to the random
+     test via `run_test("apb_random_test")` when this box is left empty;
+     setting it explicitly means you don't depend on the pasted file's default
+     and get the specific test this walkthrough's log below is from.
    - For waveforms: tick **Open EPWave after run** and add `+define+DUMP` to the
      compile options (the top's `` `ifdef DUMP `` guards a `$dumpvars`).
 
@@ -336,12 +339,13 @@ directly (A) or by including your own files (B).
 
 > **Finishing at 0 ns?** EDA Playground's command line does **not** add
 > `+UVM_TESTNAME`, so the test is chosen only by the `run_test(...)` call in
-> `apb_tb_top`. A 0-ns finish that prints the UVM release-notes banner but **no**
-> `Running test ...` line (and no `UVM_FATAL`) means `run_test` was reached with
-> an empty test name — usually because your current TB is sitting in an extra tab
-> that isn't compiled, so the stale `testbench.sv` (a bare `run_test();`) is what
-> ran. Make sure the real TB is in `testbench.sv` itself (or `` `include ``-d by
-> it), add `+UVM_TESTNAME=apb_write_read_test` to **Run options**, and confirm
+> `apb_tb_top` (the random test, by default). A 0-ns finish that prints the UVM
+> release-notes banner but **no** `Running test ...` line (and no `UVM_FATAL`)
+> means `run_test` was reached with an empty test name — usually because your
+> current TB is sitting in an extra tab that isn't compiled, so the stale
+> `testbench.sv` (a bare `run_test();`) is what ran. Make sure the real TB is in
+> `testbench.sv` itself (or `` `include ``-d by it), add
+> `+UVM_TESTNAME=apb_write_read_test` to **Run options**, and confirm
 > **UVM 1.2** is ticked.
 
 > **`Error-[ICPD] Illegal combination of drivers` on `design.sv`?** That's VCS

@@ -8,7 +8,7 @@
 # Quick start (local lint is RAM-safe; the full --binary build belongs in CI):
 #   V=~/verilator/bin/verilator ; U=~/verilator/test_regress/t/uvm
 #   ( unset VERILATOR_ROOT; make -C uvm/vlt lint    VERILATOR=$V UVM_HOME=$U )
-#   ( unset VERILATOR_ROOT; make -C uvm/vlt write_read VERILATOR=$V UVM_HOME=$U )
+#   ( unset VERILATOR_ROOT; make -C uvm/vlt random  VERILATOR=$V UVM_HOME=$U )
 
 VERILATOR ?= verilator
 

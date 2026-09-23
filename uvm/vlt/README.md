@@ -20,10 +20,10 @@ otherwise self-skips without a licensed UVM simulator.
 ## Usage
 ```sh
 V=~/verilator/bin/verilator ; U=~/verilator/test_regress/t/uvm
-( unset VERILATOR_ROOT; make -C uvm/vlt lint       VERILATOR=$V UVM_HOME=$U )  # RAM-safe (~290 MB)
-( unset VERILATOR_ROOT; make -C uvm/vlt write_read  VERILATOR=$V UVM_HOME=$U )  # build + run
+( unset VERILATOR_ROOT; make -C uvm/vlt lint     VERILATOR=$V UVM_HOME=$U )  # RAM-safe (~290 MB)
+( unset VERILATOR_ROOT; make -C uvm/vlt random   VERILATOR=$V UVM_HOME=$U )  # build + run
 ```
-Targets: `lint`; `write_read` (default), `random`, `walking`, `all`; `ci`;
+Targets: `lint`; `random` (default), `write_read`, `walking`, `all`; `ci`;
 `clean`. One `--binary` build serves all three tests (selected via
 `+UVM_TESTNAME`). `ci` is the containerized gate — lint + one build + every top,
 failing on any `UVM_ERROR`/`UVM_FATAL` (read from the report summary, since the
