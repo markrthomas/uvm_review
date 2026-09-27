@@ -146,8 +146,9 @@ waves:
 # APB request, APB response; buses in hex). ALWAYS regenerates a fresh dump via
 # `waves` — a leftover sim_build from a non-WAVES `make test`/`ci` run rewrites
 # apb_mem.fst in VCD format (Icarus dumps VCD without +fst), which GTKWave can't
-# open. Skips cleanly if GTKWave is not installed. Runs in the foreground —
-# closing GTKWave returns the shell.
+# open. Zooms to fit the whole test on open (tb/zoom_full.tcl). Skips cleanly
+# if GTKWave is not installed. Runs in the foreground — closing GTKWave returns
+# the shell.
 wave:
 	@if ! command -v gtkwave >/dev/null 2>&1; then \
 		echo "[WAVE] gtkwave not on PATH — install GTKWave to view waveforms"; \
@@ -155,7 +156,7 @@ wave:
 	fi; \
 	$(MAKE) --no-print-directory waves $(if $(TEST),TEST=$(TEST),); \
 	echo "[WAVE] opening $(FST) in GTKWave (layout: $(GTKW)) — test: $(WAVE_TEST)"; \
-	exec gtkwave $(FST) $(GTKW)
+	exec gtkwave -S $(TB_DIR)/zoom_full.tcl $(FST) $(GTKW)
 
 # SystemVerilog UVM testbench (mirrors the PyUVM TB). Needs a UVM-capable
 # commercial simulator; degrades gracefully (skip, exit 0) when none is present.
