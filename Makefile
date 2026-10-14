@@ -86,6 +86,8 @@ help:
 	@echo "  Gates:"
 	@echo "    make lint              # iverilog -Wall compile check + Verilator RTL lint"
 	@echo "    make coverage          # Verilator C++ coverage -> sim/coverage.info (fails below COV_MIN=$(COV_MIN)% lines)"
+	@echo "    make formal            # formal tier (n/a stub if none)"
+	@echo "    make stress            # stress / randomized simulation (n/a stub if none)"
 	@echo "    make check             # lint then test-all"
 	@echo "    make regress           # lint + full regression (CI-style pass/fail)"
 	@echo "    make ci                # regress + coverage"
@@ -291,3 +293,13 @@ clean:
 		$(TB_DIR)/sim_build $(TB_DIR)/__pycache__ __pycache__ \
 		results.xml dump.fst dump.vcd \
 		$(COV_DIR) sim/coverage.info sim/coverage.dat sim/annotated
+
+# Standard DV targets (DV_STANDARDS.md)
+.PHONY: stress formal
+stress: test-random
+formal:
+	@echo "[FORMAL] n/a: no formal tier in this repo yet (see DV_STANDARDS.md)"
+
+# Standard DV target (DV_STANDARDS.md)
+.PHONY: sim
+sim: test
