@@ -93,6 +93,9 @@ help:
 	@echo "    make ci                # regress + coverage"
 	@echo ""
 	@echo "  Other: make clean"
+	@echo "  swarm      Swarm A (verification) via Claude Code; swarm-rr = Swarm B (random regression); swarm-dry = show the command"
+	@echo "  batch      the Railway batch (docker/entrypoint.sh ci); board = swarm status; heavy T=<t> = one heavy target at a time"
+	@echo "  swarm-profile / swarm-kit-check   print .claude/swarm.env / check kit drift (shared kit: markrthomas/dv-swarm-kit)"
 
 # --- tests -------------------------------------------------------------------
 # run_one_test runs a SINGLE cocotb test in its own simulation and fails the
@@ -303,3 +306,6 @@ formal:
 # Standard DV target (DV_STANDARDS.md)
 .PHONY: sim
 sim: test
+
+# shared swarm/infra targets (markrthomas/dv-swarm-kit)
+include swarm.mk

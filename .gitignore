@@ -36,3 +36,5 @@ uvm/vsim.wlf
 uvm/*.fsdb
 uvm/novas.*
 uvm/verdi*
+/tb/random/runs/
+/docker/last-run-metrics.json
