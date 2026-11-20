@@ -1,5 +1,7 @@
 """AXI tests and cocotb entry points for pyuvm."""
 
+import random
+
 import cocotb
 from cocotb.triggers import ClockCycles, FallingEdge, RisingEdge
 from pyuvm import ConfigDB, uvm_root, uvm_test
@@ -7,6 +9,7 @@ from pyuvm import ConfigDB, uvm_root, uvm_test
 from axi_bfm import AxiBfm
 from axi_components import AxiEnv
 from axi_seq import AxiRandomSeq, AxiWalkingSeq, AxiWriteReadSeq
+from axi_seq_item import ADDR_MASK, DATA_MASK
 
 
 class AxiBaseTest(uvm_test):
@@ -98,6 +101,79 @@ class DualBusTest(uvm_test):
         self.drop_objection()
 
 
+class DualBusRandomTest(uvm_test):
+    """Constrained-random read/write mix driven across BOTH the APB and AXI
+    front ends of the shared byte memory, checked against a software reference
+    model of that memory.
+
+    This is the default stimulus for `make waves`/`make wave`: it runs at least
+    MIN_TXNS transfers and is guaranteed to issue at least one read and at least
+    one write, so the dumped trace always shows both operations on both buses.
+    Transfers are serialised (each completes before the next starts), so the
+    reference model stays exact regardless of which bus a given access uses.
+    """
+
+    MIN_TXNS = 20
+
+    async def run_phase(self):
+        from apb_bfm import ApbBfm
+        self.raise_objection()
+        axi_bfm = AxiBfm()
+        apb_bfm = ApbBfm()
+        # The AXI BFM owns both clocks (ACLK + PCLK) and the shared reset.
+        await axi_bfm.start_clock()
+        await axi_bfm.reset()
+        axi_bfm.start_bfms()
+        apb_bfm.start_bfms()
+
+        bfms = {"APB": apb_bfm, "AXI": axi_bfm}
+        mem = {}        # reference model: addr -> last byte written (0 if never)
+        written = []    # addresses written so far (reads bias toward these)
+
+        num = max(self.MIN_TXNS, 2)
+        # Guarantee the mix: seed one write and one read, randomise the rest,
+        # then shuffle so the two forced operations land anywhere in the run.
+        kinds = ["wr", "rd"] + [random.choice(("wr", "rd")) for _ in range(num - 2)]
+        random.shuffle(kinds)
+
+        n_wr = n_rd = 0
+        for i, kind in enumerate(kinds):
+            bus = random.choice(("APB", "AXI"))
+            bfm = bfms[bus]
+            if kind == "wr":
+                addr = random.randint(0, ADDR_MASK)
+                data = random.randint(0, DATA_MASK)
+                await bfm.send_command(addr, True, data)
+                await bfm.get_result()
+                mem[addr] = data
+                written.append(addr)
+                n_wr += 1
+                self.logger.info(f"[{i}] {bus} WR @0x{addr:04X} = 0x{data:02X}")
+            else:
+                # 4:1 bias toward an already-written address so most reads check
+                # stored data; fall back to a fresh address (always, if none yet).
+                if written and random.random() < 4 / 5:
+                    addr = random.choice(written)
+                else:
+                    addr = random.randint(0, ADDR_MASK)
+                await bfm.send_command(addr, False, 0)
+                rdata = await bfm.get_result()
+                expected = mem.get(addr, 0)
+                assert rdata == expected, (
+                    f"DualBusRandom {bus} RD @0x{addr:04X}: "
+                    f"expected 0x{expected:02X}, read 0x{rdata:02X}")
+                n_rd += 1
+                self.logger.info(f"[{i}] {bus} RD @0x{addr:04X} = 0x{rdata:02X} (ok)")
+
+        assert n_wr >= 1 and n_rd >= 1, (
+            f"DualBusRandomTest must issue >=1 read and >=1 write "
+            f"(got {n_wr} writes, {n_rd} reads)")
+        self.logger.info(
+            f"DualBusRandomTest: {len(kinds)} transfers "
+            f"({n_wr} writes, {n_rd} reads) across APB+AXI all matched!")
+        self.drop_objection()
+
+
 @cocotb.test()
 async def axi_write_read_test(_dut):
     await uvm_root().run_test("AxiWriteReadTest")
@@ -116,6 +192,11 @@ async def axi_walking_test(_dut):
 @cocotb.test()
 async def dual_bus_test(_dut):
     await uvm_root().run_test("DualBusTest")
+
+
+@cocotb.test()
+async def dual_bus_random_test(_dut):
+    await uvm_root().run_test("DualBusRandomTest")
 
 
 async def _wait_for_high(clk, signal, channel, cycles=32):
