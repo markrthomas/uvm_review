@@ -51,7 +51,7 @@ COV_MIN ?= 100
 
 .PHONY: default help \
 	test test-all test-write-read test-random test-walking \
-	test-axi-write-read test-axi-random test-axi-walking test-axi-protocol test-dual-bus \
+	test-axi-write-read test-axi-random test-axi-walking test-axi-protocol test-dual-bus test-dual-bus-random \
 	waves waves-apb waves-axi waves-dual wave wave-apb wave-axi wave-dual \
 	check regress ci coverage uvm lp \
 	docker-uvm-build docker-uvm-run railway-config railway-deploy railway-logs railway-run check-docker \
@@ -74,13 +74,14 @@ help:
 	@echo "    make test-axi-walking  # AXI directed address/data edge cases"
 	@echo "    make test-axi-protocol # AXI AW/W skew + WSTRB no-op behavior"
 	@echo "    make test-dual-bus     # cross-bus concurrent test (APB WR -> AXI RD, AXI WR -> APB RD)"
+	@echo "    make test-dual-bus-random # cross-bus random read/write mix (>=20 transfers, both R&W, ref-model checked)"
 	@echo ""
 	@echo "  Waveform viewing (GTKWave with curated bus layouts):"
-	@echo "    make wave              # open dump in GTKWave (default: BUS=dual layout; override with BUS=apb|axi|dual)"
+	@echo "    make wave              # open dump in GTKWave (default: BUS=dual -> dual_bus_random_test; override BUS=apb|axi|dual or TEST=<name>)"
 	@echo "    make wave-apb          # open GTKWave with dedicated APB bus view (tb/apb_bus.gtkw)"
 	@echo "    make wave-axi          # open GTKWave with dedicated AXI bus view (tb/axi_bus.gtkw)"
 	@echo "    make wave-dual         # open GTKWave with dual AXI + APB bus view (tb/dual_bus.gtkw)"
-	@echo "    make waves             # dump FST trace only (TEST=<name>, BUS=apb|axi|dual)"
+	@echo "    make waves             # dump FST trace only (default: dual_bus_random_test; TEST=<name>, BUS=apb|axi|dual)"
 	@echo "    make waves-apb         # dump APB trace only"
 	@echo "    make waves-axi         # dump AXI trace only"
 	@echo "    make waves-dual        # dump dual-bus trace only"
@@ -145,6 +146,7 @@ test-all:
 	$(call run_one_test,axi_walking_test)
 	$(call run_one_test,axi_channel_skew_and_strobe_test)
 	$(call run_one_test,dual_bus_test)
+	$(call run_one_test,dual_bus_random_test)
 	@echo "[TEST] all PyUVM tests (APB + AXI + dual-bus) passed"
 
 test-write-read:
@@ -171,9 +173,12 @@ test-axi-protocol:
 test-dual-bus:
 	$(call run_one_test,dual_bus_test)
 
+test-dual-bus-random:
+	$(call run_one_test,dual_bus_random_test)
+
 # Waveform dump. Supports BUS=apb | BUS=axi | BUS=dual (default: dual).
 # TEST=<name> overrides the testcase dumped.
-WAVE_TESTS := write_read_test random_test walking_test axi_write_read_test axi_random_test axi_walking_test axi_channel_skew_and_strobe_test dual_bus_test
+WAVE_TESTS := write_read_test random_test walking_test axi_write_read_test axi_random_test axi_walking_test axi_channel_skew_and_strobe_test dual_bus_test dual_bus_random_test
 
 BUS ?= dual
 ifeq ($(BUS),apb)
@@ -183,7 +188,7 @@ else ifeq ($(BUS),axi)
   DEFAULT_WAVE_TEST := axi_random_test
   GTKW_SEL := $(GTKW_AXI)
 else
-  DEFAULT_WAVE_TEST := dual_bus_test
+  DEFAULT_WAVE_TEST := dual_bus_random_test
   GTKW_SEL := $(GTKW_DUAL)
 endif
 
