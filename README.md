@@ -1,33 +1,48 @@
-# apb_mem
+# axi_apb_mem
 
 [![CI](https://github.com/markrthomas/uvm_review/actions/workflows/ci.yml/badge.svg)](https://github.com/markrthomas/uvm_review/actions/workflows/ci.yml)
 
-APB byte-wide 32K memory RTL with a self-checking PyUVM testbench (runnable
-here) and a mirror SystemVerilog UVM testbench (license-gated).
+Shared AXI4-Lite and APB3 access to a byte-wide 32K memory, with a
+self-checking PyUVM/cocotb testbench. The original `apb_mem` remains available
+as a standalone APB3 slave; `axi_apb_mem` is the integrated dual-bus top.
+The native SystemVerilog UVM environment mirrors the standalone APB3 core and
+is license-gated.
 
 ## Architecture
 
 `apb_mem` is a zero-wait-state APB3 slave wrapping a byte-wide memory array
 (`2**ADDR_WIDTH` locations of `DATA_WIDTH` bits; default 32768 × 8-bit = 32K).
-`PREADY` is tied high so every transfer completes in the ACCESS phase, and
-`PSLVERR` is tied low (the slave never errors). Writes are gated by `PRESETn`
-so reset cannot corrupt the array, and the array powers up all-zero so reads of
-un-written locations return 0.
+`axi_apb_mem` instantiates that core alongside an AXI4-Lite slave front end and
+an APB-side arbiter. Native APB uses `PCLK`; AXI4-Lite uses `ACLK`; they may be
+unrelated clocks. One AXI request and response at a time cross the domains with
+level handshakes and two-flop control synchronizers. Request/response payloads
+are held stable for the whole handshake.
+
+The native APB interface gets priority when it is already active, and an AXI
+transaction holds the memory through its APB SETUP and ACCESS phases. `PREADY`
+is high and `PSLVERR` is low for a granted APB transfer. AXI responses are
+`OKAY`; a future APB error response maps to AXI `SLVERR`. `AW` and `W` are
+accepted independently, as AXI4-Lite permits, and `WSTRB=0` produces a no-op
+write. Assert `PRESETn` and `ARESETn` together to reset the full subsystem.
 
 ```mermaid
 flowchart LR
-    M["APB master<br/>(PyUVM driver / BFM)"]
+    AXI["AXI4-Lite master<br/>ACLK domain"]
+    APB["Native APB3 master<br/>PCLK domain"]
 
-    subgraph SL["apb_mem — APB3 slave, zero wait states"]
-        direction TB
-        REQ["Request decode<br/>PSEL · PENABLE · PWRITE · PADDR"]
-        MEM["Memory array<br/>2**ADDR_WIDTH × DATA_WIDTH<br/>(32768 × 8-bit)"]
-        RSP["Response<br/>PRDATA · PREADY=1 · PSLVERR=0"]
-        REQ --> MEM --> RSP
+    subgraph DUT["axi_apb_mem"]
+        direction LR
+        BR["AXI front end<br/>AW/W capture · AXI responses"]
+        CDC["one-request CDC<br/>stable payload + synced controls"]
+        ARB["PCLK arbiter<br/>APB priority · non-preemptive AXI grant"]
+        MEM["apb_mem<br/>32K × 8-bit · zero wait state"]
+        BR --> CDC --> ARB --> MEM
     end
 
-    M -->|"PSEL · PENABLE · PWRITE · PADDR · PWDATA"| REQ
-    RSP -->|"PRDATA · PREADY"| M
+    AXI --> BR
+    APB --> ARB
+    MEM --> APB
+    BR --> AXI
 ```
 
 | Parameter    | Default | Meaning                                   |
@@ -37,8 +52,10 @@ flowchart LR
 
 ## Directory layout
 
-- `rtl/` — the DUT (`apb_mem.sv`)
-- `tb/` — PyUVM testbench and its cocotb runner (`tb/Makefile`)
+- `rtl/` — `apb_mem.sv`, the AXI front end (`axi_lite_to_apb.sv`), and the
+  integrated dual-bus top (`axi_apb_mem.sv`)
+- `tb/` — APB and AXI PyUVM agents, cross-bus test, cocotb runner, and curated
+  APB/AXI/dual-bus GTKWave layouts
 - `uvm/` — SystemVerilog UVM testbench mirroring the PyUVM TB (`uvm/Makefile`)
 - `lp/` — low-power / UPF example: golden `apb_mem.upf` + a runnable emulation (`make lp`)
 - `sim/` — Verilator C++ coverage harness (`sim_main.cpp`)
@@ -47,7 +64,7 @@ flowchart LR
   as Code — see `uvm/vlt/README.md`
 - `Makefile` — standard DV gate targets (delegates the cocotb run to `tb/`)
 
-The testbench is layered so only the BFM touches DUT signals:
+The PyUVM testbench is layered so only a BFM touches DUT signals:
 
 | File                | Role                                                         |
 |---------------------|--------------------------------------------------------------|
@@ -56,14 +73,16 @@ The testbench is layered so only the BFM touches DUT signals:
 | `tb/apb_components.py` | driver, monitor, agent, scoreboard, env                   |
 | `tb/apb_seq.py`     | sequences: write-read, random, walking edge cases            |
 | `tb/apb_test.py`    | tests + the `@cocotb.test` entry points                      |
+| `tb/axi_bfm.py` / `tb/axi_components.py` | AXI4-Lite BFM and UVM agent / scoreboard     |
+| `tb/axi_seq_item.py` / `tb/axi_seq.py` / `tb/axi_test.py` | AXI sequences, tests, and cross-bus test |
 
 The **scoreboard** keeps a reference byte model and checks every read against the
 last write to that address.
 
 ### SystemVerilog UVM testbench (`uvm/`)
 
-`uvm/` is a native SystemVerilog UVM testbench that mirrors the PyUVM TB
-component-for-component, as a reference deliverable. **This host has no
+`uvm/` is a native SystemVerilog UVM testbench that mirrors the standalone APB
+PyUVM environment component-for-component, as a reference deliverable. **This host has no
 SystemVerilog/UVM simulator license**, so `make uvm` degrades gracefully — it
 detects VCS / Xcelium / Questa and, finding none, prints a skip and exits 0. On
 a licensed host it runs for real (`make uvm TEST=apb_random_test`).
@@ -91,9 +110,9 @@ UVM flow — the Icarus/cocotb simulator's SVA support is too weak to carry it.
 | `ApbEnv`                    | `apb_env.sv`                                   |
 | tests + `@cocotb.test`      | `apb_test.sv` + `apb_tb_top.sv` (`run_test`)   |
 
-## Testbench block diagram
+## APB testbench block diagram
 
-Both testbenches share the same UVM structure (the PyUVM and SystemVerilog
+The APB PyUVM and SystemVerilog environments share the same UVM structure (the
 class names differ but map one-for-one per the table above). A sequence hands
 transactions to the sequencer; the driver turns them into APB pin wiggles; the
 monitor observes completed transfers and forwards them to the scoreboard, which
@@ -138,13 +157,14 @@ Everything runs from the repo root and degrades gracefully if a tool is absent.
 
 | Flow            | Command                | What it does                                                        |
 |-----------------|------------------------|--------------------------------------------------------------------|
-| Full regression | `make test`            | All three PyUVM tests (write-read, random, walking).               |
-| Directed        | `make test-write-read` | Write a value, read it back from the same address.                |
-| Random          | `make test-random`     | Random mix of reads and writes; reads biased 4:1 toward written addresses (fewer zero-data reads). |
-| Walking         | `make test-walking`    | Directed first/last-address and all-0 / all-1 payload edge cases. |
-| Waves           | `make wave`            | Dump the random test then open GTKWave with the curated `tb/apb_mem.gtkw` layout (`make waves` just dumps; `TEST=<name>`/`TEST=all` picks a different test). |
-| Lint            | `make lint`            | `iverilog -Wall` compile check + Verilator RTL lint.              |
-| Coverage        | `make coverage`        | Verilator `--coverage` C++ harness → `sim/coverage.info` (lcov); fails below `COV_MIN` (default 100%). |
+| Full regression | `make test`            | Eight isolated PyUVM tests: APB, AXI, protocol, and cross-bus traffic. |
+| APB directed / random / walking | `make test-write-read` / `make test-random` / `make test-walking` | Native APB tests. |
+| AXI directed / random / walking | `make test-axi-write-read` / `make test-axi-random` / `make test-axi-walking` | AXI4-Lite tests with asynchronous PCLK/ACLK. |
+| AXI protocol    | `make test-axi-protocol` | Independently timed AW/W channels and `WSTRB=0` no-op write.      |
+| Cross-bus       | `make test-dual-bus`   | APB→AXI, AXI→APB, and overlapping independent writes.             |
+| Waves           | `make wave-dual`       | Dump the dual-bus test then open the AXI+APB GTKWave layout (`make wave-apb` and `make wave-axi` select focused views). |
+| Lint            | `make lint`            | `iverilog -Wall` and Verilator lint of the integrated AXI+APB RTL. |
+| Coverage        | `make coverage`        | Verilator C++ coverage for the standalone `apb_mem` core → `sim/coverage.info` (lcov); fails below `COV_MIN` (default 100%). |
 | Gate            | `make check`           | Lint then the full regression.                                    |
 | CI              | `make ci`              | Lint + regression + coverage as a single pass/fail gate.          |
 | SV UVM          | `make uvm`             | SystemVerilog UVM TB (VCS/Xcelium/Questa); skips cleanly if unlicensed. |
@@ -178,14 +198,21 @@ absent.
 make test
 ```
 
-This delegates to `tb/Makefile`, which compiles `rtl/apb_mem.sv` with Icarus and
-runs all three cocotb tests. Expect three `PASS` lines and a zero exit code:
+This delegates to `tb/Makefile`, which compiles `rtl/apb_mem.sv`,
+`rtl/axi_lite_to_apb.sv`, and `rtl/axi_apb_mem.sv` with Icarus. It runs each
+test in a fresh simulation, so every scoreboard starts with a zeroed memory.
+Expect eight `PASS` lines and a zero exit code, including:
 
 ```
 ** TEST                          STATUS  SIM TIME (ns) ...
 ** apb_test.write_read_test      PASS   ...
 ** apb_test.random_test          PASS   ...
 ** apb_test.walking_test         PASS   ...
+** axi_test.axi_write_read_test  PASS   ...
+** axi_test.axi_random_test      PASS   ...
+** axi_test.axi_walking_test     PASS   ...
+** axi_test.axi_channel_skew_and_strobe_test PASS ...
+** axi_test.dual_bus_test        PASS   ...
 ```
 
 Each test builds the environment, pulses reset via the BFM, runs its sequence,
@@ -196,9 +223,14 @@ and the scoreboard asserts `errors == 0` in its check phase.
 Pick one directed scenario while iterating:
 
 ```bash
-make test-write-read     # write a byte, read it back from the same address
-make test-random         # 64 random reads/writes; reads biased 4:1 to written addrs
-make test-walking        # first/last address × all-0 / all-1 / patterned data
+make test-write-read      # APB: write a byte, then read it back
+make test-random          # APB: 64 random reads/writes
+make test-walking         # APB: address/data edge cases
+make test-axi-write-read  # AXI4-Lite: write then read back
+make test-axi-random      # AXI4-Lite: randomized traffic
+make test-axi-walking     # AXI4-Lite: address/data edge cases
+make test-axi-protocol    # AXI4-Lite: AW/W skew and WSTRB no-op
+make test-dual-bus        # APB↔AXI visibility plus overlapping writes
 ```
 
 Under the hood each sets `TESTCASE=<name>` for the cocotb runner.
@@ -206,21 +238,20 @@ Under the hood each sets `TESTCASE=<name>` for the cocotb runner.
 ### 4. Inspect waveforms
 
 ```bash
-make wave                     # dump (if needed) + open GTKWave with the curated layout (default: random_test)
-make wave TEST=write_read_test # dump & view a different single test
-make wave TEST=all            # dump & view all three tests concatenated
-make waves                    # just (re)dump tb/sim_build/apb_mem.fst
+make wave-dual                          # dual-bus test + AXI/APB GTKWave layout
+make wave-apb                           # APB random test + APB-focused layout
+make wave-axi                           # AXI random test + AXI-focused layout
+make wave-dual TEST=axi_write_read_test # dump a chosen test with dual layout
+make waves-dual                         # just (re)dump tb/sim_build/axi_apb_mem.fst
 ```
 
-`make wave` opens the dump with `tb/apb_mem.gtkw`, which groups the signals
-(clock/reset, APB request, APB response) with the address/data buses in hex. It
-always rebuilds a fresh dump first — so a leftover `.fst` from a `make test`/`ci`
-run can't confuse it — and skips cleanly if GTKWave isn't installed. By default
-it dumps just `random_test` (64 constrained-random reads/writes, reads biased
-4:1 toward written addresses); `TEST=write_read_test` / `walking_test` dumps
-and views a different single test, and `TEST=all` shares one dump across all
-three. Look at `PSEL`/`PENABLE` for the SETUP→ACCESS handshake and `PREADY`
-held high (zero wait states).
+`make wave` defaults to the dual-bus layout; set `BUS=apb`, `BUS=axi`, or
+`BUS=dual` to select a layout explicitly. The saved files group clock/reset,
+request, and response signals with address/data buses in hex. Each command
+rebuilds a fresh dump first, so a leftover simulation artifact cannot confuse
+GTKWave. In the dual view, inspect the bridge's `axi_req_valid` /
+`axi_rsp_valid` handshake alongside the memory-side APB transfer; AXI traffic
+is converted into one PCLK-domain SETUP→ACCESS transfer.
 
 ### 5. Measure coverage
 
@@ -228,9 +259,10 @@ held high (zero wait states).
 make coverage
 ```
 
-This builds `rtl/apb_mem.sv` with Verilator `--coverage`, runs the C++ harness
-in `sim/sim_main.cpp`, exports lcov to `sim/coverage.info`, and enforces a line
-floor (`COV_MIN`, default 100). Lower the bar for a quick look with
+This builds the standalone `rtl/apb_mem.sv` core with Verilator `--coverage`,
+runs the C++ harness in `sim/sim_main.cpp`, exports lcov to
+`sim/coverage.info`, and enforces a line floor (`COV_MIN`, default 100%). Lower
+the bar for a quick look with
 `make coverage COV_MIN=90`.
 
 ### 6. Lint and the CI gate

@@ -1,0 +1,41 @@
+[*]
+[*] GTKWave save file — APB3 Bus View (axi_apb_mem)
+[*] Opened by `make wave-apb` / `make wave BUS=apb` on tb/sim_build/axi_apb_mem.fst.
+[*]
+[timestart] 0
+[size] 1400 720
+[pos] -1 -1
+[treeopen] axi_apb_mem.
+[sst_width] 260
+[signals_width] 260
+[sst_expanded] 1
+[sst_vpaned_height] 340
+@800200
+-Clock / Reset
+@28
+axi_apb_mem.PCLK
+axi_apb_mem.PRESETn
+@1000200
+-Clock / Reset
+@800200
+-APB Master Request
+@28
+axi_apb_mem.PSEL
+axi_apb_mem.PENABLE
+axi_apb_mem.PWRITE
+@22
+axi_apb_mem.PADDR[14:0]
+axi_apb_mem.PWDATA[7:0]
+@1000200
+-APB Master Request
+@800200
+-APB Slave Response
+@22
+axi_apb_mem.PRDATA[7:0]
+@28
+axi_apb_mem.PREADY
+axi_apb_mem.PSLVERR
+@1000200
+-APB Slave Response
+[pattern_trace] 1
+[pattern_trace] 0

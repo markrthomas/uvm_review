@@ -27,14 +27,30 @@ class ApbBfm(metaclass=utility_classes.Singleton):
     async def reset(self):
         # Idle the request channel and pulse PRESETn low.
         self.dut.PRESETn.value = 0
+        if hasattr(self.dut, "ARESETn"):
+            self.dut.ARESETn.value = 0
         self.dut.PSEL.value = 0
         self.dut.PENABLE.value = 0
         self.dut.PWRITE.value = 0
         self.dut.PADDR.value = 0
         self.dut.PWDATA.value = 0
+        if hasattr(self.dut, "AWVALID"):
+            self.dut.AWADDR.value = 0
+            self.dut.AWPROT.value = 0
+            self.dut.AWVALID.value = 0
+            self.dut.WDATA.value = 0
+            self.dut.WSTRB.value = 0
+            self.dut.WVALID.value = 0
+            self.dut.BREADY.value = 0
+            self.dut.ARADDR.value = 0
+            self.dut.ARPROT.value = 0
+            self.dut.ARVALID.value = 0
+            self.dut.RREADY.value = 0
         await ClockCycles(self.dut.PCLK, 3)
         await FallingEdge(self.dut.PCLK)
         self.dut.PRESETn.value = 1
+        if hasattr(self.dut, "ARESETn"):
+            self.dut.ARESETn.value = 1
         await RisingEdge(self.dut.PCLK)
 
     # -- primitive APB transfers ---------------------------------------------
