@@ -1,5 +1,5 @@
 # =============================================================================
-# apb_mem — APB byte-wide 32K memory: RTL lint + PyUVM/cocotb regression.
+# axi_apb_mem — shared AXI4-Lite/APB3 byte-memory: lint + PyUVM/cocotb regression.
 #
 # Toolchain (WSL2 host):
 #   * Simulator : Icarus Verilog 11  (/usr/bin/iverilog, pinned via ICARUS_BIN_DIR)
@@ -15,10 +15,14 @@ IVERILOG  ?= iverilog
 VERILATOR ?= verilator
 
 RTL       := rtl/apb_mem.sv
+RTL_ALL   := rtl/apb_mem.sv rtl/axi_lite_to_apb.sv rtl/axi_apb_mem.sv
 TB_DIR    := tb
 TB_RESULTS := $(TB_DIR)/results.xml
-FST       := $(TB_DIR)/sim_build/apb_mem.fst
-GTKW      := $(TB_DIR)/apb_mem.gtkw
+FST       := $(TB_DIR)/sim_build/axi_apb_mem.fst
+GTKW      := $(TB_DIR)/dual_bus.gtkw
+GTKW_APB  := $(TB_DIR)/apb_bus.gtkw
+GTKW_AXI  := $(TB_DIR)/axi_bus.gtkw
+GTKW_DUAL := $(TB_DIR)/dual_bus.gtkw
 UVM_DIR   := uvm
 LP_DIR    := lp
 LP_RESULTS := $(LP_DIR)/results.xml
@@ -47,7 +51,9 @@ COV_MIN ?= 100
 
 .PHONY: default help \
 	test test-all test-write-read test-random test-walking \
-	waves wave check regress ci coverage uvm lp \
+	test-axi-write-read test-axi-random test-axi-walking test-axi-protocol test-dual-bus \
+	waves waves-apb waves-axi waves-dual wave wave-apb wave-axi wave-dual \
+	check regress ci coverage uvm lp \
 	docker-uvm-build docker-uvm-run railway-config railway-deploy railway-logs railway-run check-docker \
 	lint _lint_iverilog _lint_verilator \
 	clean
@@ -55,16 +61,29 @@ COV_MIN ?= 100
 default: help
 
 help:
-	@echo "apb_mem — common targets"
+	@echo "apb_mem / axi_apb_mem — common targets"
 	@echo ""
 	@echo "  Tests (PyUVM / cocotb):"
-	@echo "    make test              # same as test-all (all three cocotb tests)"
+	@echo "    make test              # same as test-all (APB, AXI, protocol, and dual-bus tests)"
 	@echo "    make test-all"
-	@echo "    make test-write-read   # write-then-read-back sequence"
-	@echo "    make test-random       # constrained-random read/write mix"
-	@echo "    make test-walking      # directed address/data edge cases"
-	@echo "    make waves             # dump tb/sim_build/apb_mem.fst (default: random_test; TEST=<name>, or TEST=all)"
-	@echo "    make wave              # open the dump in GTKWave (default: random_test; TEST=<name>, or TEST=all)"
+	@echo "    make test-write-read   # APB write-then-read-back sequence"
+	@echo "    make test-random       # APB constrained-random read/write mix"
+	@echo "    make test-walking      # APB directed address/data edge cases"
+	@echo "    make test-axi-write-read # AXI write-then-read-back sequence"
+	@echo "    make test-axi-random   # AXI constrained-random read/write mix"
+	@echo "    make test-axi-walking  # AXI directed address/data edge cases"
+	@echo "    make test-axi-protocol # AXI AW/W skew + WSTRB no-op behavior"
+	@echo "    make test-dual-bus     # cross-bus concurrent test (APB WR -> AXI RD, AXI WR -> APB RD)"
+	@echo ""
+	@echo "  Waveform viewing (GTKWave with curated bus layouts):"
+	@echo "    make wave              # open dump in GTKWave (default: BUS=dual layout; override with BUS=apb|axi|dual)"
+	@echo "    make wave-apb          # open GTKWave with dedicated APB bus view (tb/apb_bus.gtkw)"
+	@echo "    make wave-axi          # open GTKWave with dedicated AXI bus view (tb/axi_bus.gtkw)"
+	@echo "    make wave-dual         # open GTKWave with dual AXI + APB bus view (tb/dual_bus.gtkw)"
+	@echo "    make waves             # dump FST trace only (TEST=<name>, BUS=apb|axi|dual)"
+	@echo "    make waves-apb         # dump APB trace only"
+	@echo "    make waves-axi         # dump AXI trace only"
+	@echo "    make waves-dual        # dump dual-bus trace only"
 	@echo ""
 	@echo "  SystemVerilog UVM (license-gated; skips cleanly if no simulator):"
 	@echo "    make uvm               # run the SV/UVM TB under uvm/ (VCS/Xcelium/Questa)"
@@ -121,7 +140,12 @@ test-all:
 	$(call run_one_test,write_read_test)
 	$(call run_one_test,random_test)
 	$(call run_one_test,walking_test)
-	@echo "[TEST] all three PyUVM tests passed"
+	$(call run_one_test,axi_write_read_test)
+	$(call run_one_test,axi_random_test)
+	$(call run_one_test,axi_walking_test)
+	$(call run_one_test,axi_channel_skew_and_strobe_test)
+	$(call run_one_test,dual_bus_test)
+	@echo "[TEST] all PyUVM tests (APB + AXI + dual-bus) passed"
 
 test-write-read:
 	$(call run_one_test,write_read_test)
@@ -132,13 +156,38 @@ test-random:
 test-walking:
 	$(call run_one_test,walking_test)
 
-# Waveform dump. Defaults to the random test (TEST=random_test); TEST=<name>
-# dumps a different single test, and TEST=all dumps all three tests in one sim
-# (viewing only, not a pass/fail gate). cocotb's Icarus dump module is only
-# compiled into a FRESH sim_build, so wipe it first — a stale build silently
-# skips the dump and leaves no/empty FST.
-WAVE_TESTS := write_read_test random_test walking_test
-WAVE_TEST  := $(if $(TEST),$(TEST),random_test)
+test-axi-write-read:
+	$(call run_one_test,axi_write_read_test)
+
+test-axi-random:
+	$(call run_one_test,axi_random_test)
+
+test-axi-walking:
+	$(call run_one_test,axi_walking_test)
+
+test-axi-protocol:
+	$(call run_one_test,axi_channel_skew_and_strobe_test)
+
+test-dual-bus:
+	$(call run_one_test,dual_bus_test)
+
+# Waveform dump. Supports BUS=apb | BUS=axi | BUS=dual (default: dual).
+# TEST=<name> overrides the testcase dumped.
+WAVE_TESTS := write_read_test random_test walking_test axi_write_read_test axi_random_test axi_walking_test axi_channel_skew_and_strobe_test dual_bus_test
+
+BUS ?= dual
+ifeq ($(BUS),apb)
+  DEFAULT_WAVE_TEST := random_test
+  GTKW_SEL := $(GTKW_APB)
+else ifeq ($(BUS),axi)
+  DEFAULT_WAVE_TEST := axi_random_test
+  GTKW_SEL := $(GTKW_AXI)
+else
+  DEFAULT_WAVE_TEST := dual_bus_test
+  GTKW_SEL := $(GTKW_DUAL)
+endif
+
+WAVE_TEST := $(if $(TEST),$(TEST),$(DEFAULT_WAVE_TEST))
 
 waves:
 	@if [ "$(WAVE_TEST)" != "all" ] && ! echo " $(WAVE_TESTS) " | grep -q " $(WAVE_TEST) "; then \
@@ -147,21 +196,32 @@ waves:
 	$(MAKE) -C $(TB_DIR) WAVES=1 $(if $(filter all,$(WAVE_TEST)),,TESTCASE=$(WAVE_TEST))
 	@echo "[WAVES] wrote $(FST) (test: $(WAVE_TEST))"
 
-# Open the dump in GTKWave with the curated signal layout (grouped clock/reset,
-# APB request, APB response; buses in hex). ALWAYS regenerates a fresh dump via
-# `waves` — a leftover sim_build from a non-WAVES `make test`/`ci` run rewrites
-# apb_mem.fst in VCD format (Icarus dumps VCD without +fst), which GTKWave can't
-# open. Zooms to fit the whole test on open (tb/zoom_full.tcl). Skips cleanly
-# if GTKWave is not installed. Runs in the foreground — closing GTKWave returns
-# the shell.
+waves-apb:
+	@$(MAKE) --no-print-directory waves BUS=apb $(if $(TEST),TEST=$(TEST),)
+
+waves-axi:
+	@$(MAKE) --no-print-directory waves BUS=axi $(if $(TEST),TEST=$(TEST),)
+
+waves-dual:
+	@$(MAKE) --no-print-directory waves BUS=dual $(if $(TEST),TEST=$(TEST),)
+
 wave:
 	@if ! command -v gtkwave >/dev/null 2>&1; then \
 		echo "[WAVE] gtkwave not on PATH — install GTKWave to view waveforms"; \
 		exit 0; \
 	fi; \
-	$(MAKE) --no-print-directory waves $(if $(TEST),TEST=$(TEST),); \
-	echo "[WAVE] opening $(FST) in GTKWave (layout: $(GTKW)) — test: $(WAVE_TEST)"; \
-	exec gtkwave -S $(TB_DIR)/zoom_full.tcl $(FST) $(GTKW)
+	$(MAKE) --no-print-directory waves BUS=$(BUS) $(if $(TEST),TEST=$(TEST),); \
+	echo "[WAVE] opening $(FST) in GTKWave (layout: $(GTKW_SEL)) — test: $(WAVE_TEST)"; \
+	exec gtkwave -S $(TB_DIR)/zoom_full.tcl $(FST) $(GTKW_SEL)
+
+wave-apb:
+	@$(MAKE) wave BUS=apb $(if $(TEST),TEST=$(TEST),)
+
+wave-axi:
+	@$(MAKE) wave BUS=axi $(if $(TEST),TEST=$(TEST),)
+
+wave-dual:
+	@$(MAKE) wave BUS=dual $(if $(TEST),TEST=$(TEST),)
 
 # SystemVerilog UVM testbench (mirrors the PyUVM TB). Needs a UVM-capable
 # commercial simulator; degrades gracefully (skip, exit 0) when none is present.
@@ -240,13 +300,13 @@ check-docker:
 lint: _lint_iverilog _lint_verilator
 
 _lint_iverilog:
-	@echo "[LINT] iverilog -Wall compile check..."
-	$(IVERILOG) $(IVERILOG_FLAGS) -o /dev/null $(RTL)
+	@echo "[LINT] iverilog -Wall compile check (AXI + APB subsystem)..."
+	$(IVERILOG) $(IVERILOG_FLAGS) -s axi_apb_mem -o /dev/null $(RTL_ALL)
 
 _lint_verilator:
 	@if command -v $(VERILATOR) >/dev/null 2>&1; then \
-		echo "[LINT] Verilator RTL lint..."; \
-		$(VERILATOR) $(VERILATOR_LINT_FLAGS) $(RTL); \
+		echo "[LINT] Verilator RTL lint (AXI + APB subsystem)..."; \
+		$(VERILATOR) $(VERILATOR_LINT_FLAGS) --top-module axi_apb_mem $(RTL_ALL); \
 	else \
 		echo "[LINT] verilator not on PATH — skipping RTL lint"; \
 	fi

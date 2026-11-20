@@ -1,0 +1,70 @@
+[*]
+[*] GTKWave save file — AXI4-Lite Bus View (axi_apb_mem)
+[*] Opened by `make wave-axi` / `make wave BUS=axi` on tb/sim_build/axi_apb_mem.fst.
+[*]
+[timestart] 0
+[size] 1400 800
+[pos] -1 -1
+[treeopen] axi_apb_mem.
+[sst_width] 260
+[signals_width] 280
+[sst_expanded] 1
+[sst_vpaned_height] 340
+@800200
+-Clock / Reset
+@28
+axi_apb_mem.ACLK
+axi_apb_mem.ARESETn
+@1000200
+-Clock / Reset
+@800200
+-AXI Write Address Channel (AW)
+@28
+axi_apb_mem.AWVALID
+axi_apb_mem.AWREADY
+@22
+axi_apb_mem.AWADDR[14:0]
+axi_apb_mem.AWPROT[2:0]
+@1000200
+-AXI Write Address Channel (AW)
+@800200
+-AXI Write Data Channel (W)
+@28
+axi_apb_mem.WVALID
+axi_apb_mem.WREADY
+@22
+axi_apb_mem.WDATA[7:0]
+axi_apb_mem.WSTRB
+@1000200
+-AXI Write Data Channel (W)
+@800200
+-AXI Write Response Channel (B)
+@28
+axi_apb_mem.BVALID
+axi_apb_mem.BREADY
+@22
+axi_apb_mem.BRESP[1:0]
+@1000200
+-AXI Write Response Channel (B)
+@800200
+-AXI Read Address Channel (AR)
+@28
+axi_apb_mem.ARVALID
+axi_apb_mem.ARREADY
+@22
+axi_apb_mem.ARADDR[14:0]
+axi_apb_mem.ARPROT[2:0]
+@1000200
+-AXI Read Address Channel (AR)
+@800200
+-AXI Read Data Channel (R)
+@28
+axi_apb_mem.RVALID
+axi_apb_mem.RREADY
+@22
+axi_apb_mem.RDATA[7:0]
+axi_apb_mem.RRESP[1:0]
+@1000200
+-AXI Read Data Channel (R)
+[pattern_trace] 1
+[pattern_trace] 0

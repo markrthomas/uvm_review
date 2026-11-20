@@ -1,0 +1,108 @@
+[*]
+[*] GTKWave save file — Dual Bus View: AXI4-Lite + APB3 (axi_apb_mem)
+[*] Opened by `make wave-dual` / `make wave BUS=dual` on tb/sim_build/axi_apb_mem.fst.
+[*]
+[timestart] 0
+[size] 1450 900
+[pos] -1 -1
+[treeopen] axi_apb_mem.
+[sst_width] 280
+[signals_width] 300
+[sst_expanded] 1
+[sst_vpaned_height] 340
+@800200
+-Clocks & Resets
+@28
+axi_apb_mem.ACLK
+axi_apb_mem.ARESETn
+axi_apb_mem.PCLK
+axi_apb_mem.PRESETn
+@1000200
+-Clocks & Resets
+@800200
+-AXI4-Lite Bus: Write Address
+@28
+axi_apb_mem.AWVALID
+axi_apb_mem.AWREADY
+@22
+axi_apb_mem.AWADDR[14:0]
+axi_apb_mem.AWPROT[2:0]
+@1000200
+-AXI4-Lite Bus: Write Address
+@800200
+-AXI4-Lite Bus: Write Data
+@28
+axi_apb_mem.WVALID
+axi_apb_mem.WREADY
+@22
+axi_apb_mem.WDATA[7:0]
+axi_apb_mem.WSTRB
+@1000200
+-AXI4-Lite Bus: Write Data
+@800200
+-AXI4-Lite Bus: Write Response
+@28
+axi_apb_mem.BVALID
+axi_apb_mem.BREADY
+@22
+axi_apb_mem.BRESP[1:0]
+@1000200
+-AXI4-Lite Bus: Write Response
+@800200
+-AXI4-Lite Bus: Read Address
+@28
+axi_apb_mem.ARVALID
+axi_apb_mem.ARREADY
+@22
+axi_apb_mem.ARADDR[14:0]
+axi_apb_mem.ARPROT[2:0]
+@1000200
+-AXI4-Lite Bus: Read Address
+@800200
+-AXI4-Lite Bus: Read Data
+@28
+axi_apb_mem.RVALID
+axi_apb_mem.RREADY
+@22
+axi_apb_mem.RDATA[7:0]
+axi_apb_mem.RRESP[1:0]
+@1000200
+-AXI4-Lite Bus: Read Data
+@800200
+-APB3 Bus: Master Request
+@28
+axi_apb_mem.PSEL
+axi_apb_mem.PENABLE
+axi_apb_mem.PWRITE
+@22
+axi_apb_mem.PADDR[14:0]
+axi_apb_mem.PWDATA[7:0]
+@1000200
+-APB3 Bus: Master Request
+@800200
+-APB3 Bus: Slave Response
+@22
+axi_apb_mem.PRDATA[7:0]
+@28
+axi_apb_mem.PREADY
+axi_apb_mem.PSLVERR
+@1000200
+-APB3 Bus: Slave Response
+@800200
+-Internal Arbiter & Memory Core
+@28
+axi_apb_mem.grant_axi
+axi_apb_mem.mem_psel
+axi_apb_mem.mem_penable
+axi_apb_mem.mem_pwrite
+@22
+axi_apb_mem.mem_paddr[14:0]
+axi_apb_mem.mem_pwdata[7:0]
+axi_apb_mem.mem_prdata[7:0]
+@28
+axi_apb_mem.mem_pready
+axi_apb_mem.mem_pslverr
+@1000200
+-Internal Arbiter & Memory Core
+[pattern_trace] 1
+[pattern_trace] 0
