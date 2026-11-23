@@ -24,7 +24,14 @@ then optional. Details: `uvm/vlt/README.md`.
 The swarm itself is the shared kit described in the block below; this repo's profile is `.claude/swarm.env`
 (envs: `test-all uvm`; gate: `make check`; no cross-check target). The tuned UVM-on-Verilator `docker/entrypoint.sh` and
 `.railway/railway.ts` are **repo-owned** (`KIT_KEEP`); the kit only added `swarm` / `agent` modes to the entrypoint.
-No random regression yet: `RR_STATUS=bootstrap`, so the first Swarm B run builds it under `tb/random/` (rr-bootstrap skill).
+## Random regression (`tb/random/`, Swarm B)
+Seeded random regression driving the existing self-checking random tests — **no new checker**. `make rr-build`
+compiles the cocotb sim once; `make rr N=<n> JOBS=<p> [SEED=<base>]` runs `n` seeded jobs (`p` parallel), writing
+`tb/random/runs/<UTC>/results.jsonl` and exiting non-zero iff any FAIL; `make rr-triage RUN=<dir>` clusters FAILs by
+signature; `make rr-replay` reruns `tb/random/corpus.json` (`"fixed": true` entries must PASS) and is folded into
+`make ci`. Per-seed determinism via cocotb `RANDOM_SEED` (the `SEED=` knob). Details + stimulus backlog:
+`tb/random/README.md`. The flow now exists, so **`.claude/swarm.env` should read `RR_STATUS=present`** (that file is
+protected from automated edits — flip it by hand).
 
 <!-- swarm-kit:begin (managed by markrthomas/dv-swarm-kit sync.sh — edit the kit, not this block) -->
 ## Agent swarms, run targets and tokens (swarm-kit)

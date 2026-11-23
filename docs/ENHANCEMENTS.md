@@ -54,7 +54,7 @@ here as part of that PR.
   single-outstanding CDC handshake (no lost/duplicated request), arbiter mutual
   exclusion (APB priority, non-preemptive AXI grant), and deadlock-freedom.
 
-- [ ] **8. Real stress / soak.** `make stress` is currently just
+- [x] **8. Real stress / soak.** `make stress` is currently just
   `test-random`. Build the scaffolded random-regression flow
   (`tb/random/`, `RR_STATUS=bootstrap`, the `rr-bootstrap` skill) to give a
   genuine seeded soak target with replayable failures.

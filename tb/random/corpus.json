@@ -1,0 +1,5 @@
+[
+  {"seed": 1, "config": "apb_random",  "fixed": true, "note": "APB random anchor (regression)"},
+  {"seed": 2, "config": "axi_random",  "fixed": true, "note": "AXI random anchor (regression)"},
+  {"seed": 3, "config": "dual_random", "fixed": true, "note": "cross-bus random anchor (regression)"}
+]
