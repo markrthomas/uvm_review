@@ -25,7 +25,7 @@ here as part of that PR.
   Verilator coverage harness to drive `axi_apb_mem` at the top so the floor
   means something for the complex logic.
 
-- [ ] **3. RTL parameter guard.** The RTL is correct only for `DATA_WIDTH=8`
+- [x] **3. RTL parameter guard.** The RTL is correct only for `DATA_WIDTH=8`
   (the AXI front end collapses `WSTRB` to a single write-enable, so partial
   multi-byte writes would be wrong). Add an elaboration-time guard / assertion
   (or document the fixed width) so the nominal parameterization can't be
