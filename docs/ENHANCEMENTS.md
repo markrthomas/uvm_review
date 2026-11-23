@@ -37,7 +37,7 @@ here as part of that PR.
   legal `BRESP`/`RRESP`, no-X on active channels, plus cover points for AW/W
   skew and `WSTRB=0`. Scoped to the UVM/Verilator flow (Icarus SVA is weak).
 
-- [ ] **5. Testbench refactor.** Factor the ~95% duplicated
+- [x] **5. Testbench refactor.** Factor the ~95% duplicated
   `apb_components.py` / `axi_components.py` onto a shared base
   (scoreboard / agent / env), route the dual-bus tests through a real shared
   scoreboard instead of ad-hoc asserts, drop the redundant scoreboard

@@ -6,17 +6,15 @@ from pyuvm import (
     ConfigDB,
     uvm_agent,
     uvm_analysis_port,
-    uvm_component,
     uvm_driver,
     uvm_env,
-    uvm_get_port,
     uvm_monitor,
     uvm_sequencer,
-    uvm_tlm_analysis_fifo,
 )
 
 from apb_bfm import ApbBfm
 from apb_seq_item import ApbSeqItem
+from bus_scoreboard import BusScoreboard
 
 
 class ApbDriver(uvm_driver):
@@ -61,49 +59,10 @@ class ApbAgent(uvm_agent):
         self.driver.seq_item_port.connect(self.seqr.seq_item_export)
 
 
-class ApbScoreboard(uvm_component):
-    """Reference byte memory; checks every read against the last write."""
+class ApbScoreboard(BusScoreboard):
+    """Reference byte memory; checks every APB read against the last write."""
 
-    def build_phase(self):
-        self.fifo = uvm_tlm_analysis_fifo("fifo", self)
-        self.port = uvm_get_port("port", self)
-        self.model = {}
-        self.reads = 0
-        self.errors = 0
-
-    def connect_phase(self):
-        self.port.connect(self.fifo.get_export)
-
-    @property
-    def analysis_export(self):
-        return self.fifo.analysis_export
-
-    def process_transaction(self, tr):
-        if tr.write:
-            self.model[tr.addr] = tr.data
-        else:
-            self.reads += 1
-            expected = self.model.get(tr.addr, 0)
-            if tr.rdata != expected:
-                self.errors += 1
-                self.logger.error(
-                    f"MISMATCH @0x{tr.addr:04X}: "
-                    f"got 0x{tr.rdata:02X} exp 0x{expected:02X}")
-            else:
-                self.logger.info(f"MATCH {tr}")
-
-    async def run_phase(self):
-        while True:
-            tr = await self.port.get()
-            self.process_transaction(tr)
-
-    def check_phase(self):
-        while self.port.can_get():
-            _, tr = self.port.try_get()
-            self.process_transaction(tr)
-        self.logger.info(
-            f"Scoreboard: {self.reads} reads checked, {self.errors} errors")
-        assert self.errors == 0, f"{self.errors} scoreboard mismatch(es)"
+    tag = "ApbScoreboard"
 
 
 class ApbEnv(uvm_env):
