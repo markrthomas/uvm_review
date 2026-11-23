@@ -1,0 +1,30 @@
+# SymbiYosys formal proof for the AXI4-Lite -> APB request/response FSM.
+#
+# Proves (prove task, temporal induction) the safety properties embedded in
+# rtl/axi_lite_to_apb.sv under `ifdef FORMAL: legal state encoding, single
+# outstanding (B/R response exclusivity, READYs only in IDLE, request only in
+# ST_REQ), response VALID held with stable payload until READY, and legal
+# response codes. The cover task shows both responses are reachable (the FSM
+# does not deadlock). The FSM is a single clock domain, so no multiclock
+# modelling is needed; the arbiter-side inputs are left free.
+#
+# Run via `make formal` (needs SymbiYosys + yosys + an SMT solver, e.g. z3).
+
+[tasks]
+prove
+cover
+
+[options]
+prove: mode prove
+cover: mode cover
+depth 20
+
+[engines]
+smtbmc z3
+
+[script]
+read -formal -DFORMAL axi_lite_to_apb.sv
+prep -top axi_lite_to_apb
+
+[files]
+../rtl/axi_lite_to_apb.sv
