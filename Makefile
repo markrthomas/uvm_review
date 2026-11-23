@@ -55,7 +55,7 @@ COV_MIN ?= 100
 
 .PHONY: default help \
 	test test-all test-write-read test-random test-walking \
-	test-axi-write-read test-axi-random test-axi-walking test-axi-protocol test-dual-bus test-dual-bus-random \
+	test-axi-write-read test-axi-random test-axi-walking test-axi-protocol test-dual-bus test-dual-bus-random test-axi-slverr \
 	waves waves-apb waves-axi waves-dual wave wave-apb wave-axi wave-dual \
 	check regress ci coverage uvm lp \
 	docker-uvm-build docker-uvm-run railway-config railway-deploy railway-logs railway-run check-docker \
@@ -79,6 +79,7 @@ help:
 	@echo "    make test-axi-protocol # AXI AW/W skew + WSTRB no-op behavior"
 	@echo "    make test-dual-bus     # cross-bus concurrent test (APB WR -> AXI RD, AXI WR -> APB RD)"
 	@echo "    make test-dual-bus-random # cross-bus random read/write mix (>=20 transfers, both R&W, ref-model checked)"
+	@echo "    make test-axi-slverr   # error-path: -DAPB_ERR_INJECT build, checks PSLVERR -> AXI SLVERR response"
 	@echo ""
 	@echo "  Waveform viewing (GTKWave with curated bus layouts):"
 	@echo "    make wave              # open dump in GTKWave (default: BUS=dual -> dual_bus_random_test; override BUS=apb|axi|dual or TEST=<name>)"
@@ -152,6 +153,7 @@ test-all:
 	$(call run_one_test,axi_channel_skew_and_strobe_test)
 	$(call run_one_test,dual_bus_test)
 	$(call run_one_test,dual_bus_random_test)
+	@$(MAKE) --no-print-directory test-axi-slverr
 	@echo "[TEST] all PyUVM tests (APB + AXI + dual-bus) passed"
 
 test-write-read:
@@ -180,6 +182,14 @@ test-dual-bus:
 
 test-dual-bus-random:
 	$(call run_one_test,dual_bus_random_test)
+
+# Error-path test: builds apb_mem with -DAPB_ERR_INJECT (asserts PSLVERR at the
+# top address) in its own sim_build and checks the AXI SLVERR response mapping.
+test-axi-slverr:
+	@$(MAKE) -C $(TB_DIR) ERR_INJECT=1 TESTCASE=axi_slverr_test
+	@test -f $(TB_RESULTS) || { echo "[TEST] axi_slverr_test: no results.xml (sim did not run)"; exit 1; }
+	@if grep -Eq "<failure|<error" $(TB_RESULTS); then echo "[TEST] axi_slverr_test FAILED (see log above)"; exit 1; fi
+	@echo "[TEST] axi_slverr_test passed"
 
 # Waveform dump. Supports BUS=apb | BUS=axi | BUS=dual (default: dual).
 # TEST=<name> overrides the testcase dumped.

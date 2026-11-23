@@ -35,6 +35,15 @@ export PYTHONPATH := $(PWD):$(PYTHONPATH)
 # Icarus needs SystemVerilog turned on explicitly.
 COMPILE_ARGS += -g2012
 
+# ERR_INJECT=1: build apb_mem with -DAPB_ERR_INJECT (asserts PSLVERR at the top
+# address) and run only the SLVERR error-path test, in its own build dir so it
+# never shares sim_build/ with the normal (never-error) regression.
+ifeq ($(ERR_INJECT),1)
+    COMPILE_ARGS += -DAPB_ERR_INJECT
+    MODULE        := axi_err_test
+    SIM_BUILD     ?= sim_build/err_inject
+endif
+
 # make WAVES=1  -> dump.fst
 ifeq ($(WAVES),1)
     PLUSARGS += -fst

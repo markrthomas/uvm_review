@@ -45,9 +45,21 @@ module apb_mem #(
             mem[i] = '0;
     end
 
-    // Zero-wait-state slave that never errors.
+    // Zero-wait-state slave.
     assign PREADY  = 1'b1;
+
+`ifdef APB_ERR_INJECT
+    // Error-injection build (test only, off by default): flag accesses to the
+    // top address as a slave error so the dead PSLVERR -> AXI SLVERR response
+    // path can be exercised (see tb/axi_err_test.py). Mirrors the lp/ LP_EMULATE
+    // pattern: the shipped slave never errors -- PSLVERR is tied low below in a
+    // normal build, so DUT behaviour is unchanged unless this define is set.
+    localparam logic [ADDR_WIDTH-1:0] ERR_ADDR = {ADDR_WIDTH{1'b1}};
+    assign PSLVERR = (PSEL && PENABLE && (PADDR == ERR_ADDR));
+`else
+    // This slave never errors.
     assign PSLVERR = 1'b0;
+`endif
 
     // Write commits in the ACCESS phase (PSEL & PENABLE & PWRITE & PREADY).
     // Plain `always @(posedge)` (not `always_ff`): the memory is preloaded to
