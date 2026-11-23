@@ -31,7 +31,7 @@ here as part of that PR.
   (or document the fixed width) so the nominal parameterization can't be
   misused silently. No behaviour change for the supported config.
 
-- [ ] **4. AXI4-Lite SVA checker.** Add `axi_sva.sv` bound to
+- [x] **4. AXI4-Lite SVA checker.** Add `axi_sva.sv` bound to
   `axi_lite_to_apb` (mirroring `apb_sva.sv`): VALID stable until READY on every
   channel, no handshake drop, single-outstanding `BVALID`/`RVALID` exclusivity,
   legal `BRESP`/`RRESP`, no-X on active channels, plus cover points for AW/W

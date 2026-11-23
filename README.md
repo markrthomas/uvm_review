@@ -58,7 +58,8 @@ flowchart LR
   APB/AXI/dual-bus GTKWave layouts
 - `uvm/` — SystemVerilog UVM testbench mirroring the PyUVM TB (`uvm/Makefile`)
 - `lp/` — low-power / UPF example: golden `apb_mem.upf` + a runnable emulation (`make lp`)
-- `sim/` — Verilator C++ coverage harness (`sim_main.cpp`)
+- `sim/` — Verilator C++ coverage harness (`sim_main.cpp`) driving the full
+  `axi_apb_mem` subsystem (memory core + AXI front end + arbiter/CDC)
 - `Dockerfile`, `docker/`, `.railway/` — containerized UVM-on-Verilator gate for
   off-box / cloud (Railway) runs; `.railway/railway.ts` is Railway Infrastructure
   as Code — see `uvm/vlt/README.md`
@@ -99,6 +100,15 @@ deassertion, address/data stability, no-X on active signals) and this slave's
 tie-offs (zero-wait `PREADY`, never-error `PSLVERR`, bus-idle-during-reset),
 plus `cover` points for the read and write transactions. It is scoped to the
 UVM flow — the Icarus/cocotb simulator's SVA support is too weak to carry it.
+
+An AXI4-Lite protocol checker, `uvm/axi_sva.sv`, is `bind`-ed to every
+`axi_lite_to_apb` instance in the same spirit: VALID-held-with-stable-payload
+until READY on every channel, `BVALID`/`RVALID` single-outstanding exclusivity,
+the OKAY/SLVERR-only response policy, no-X on response outputs, and `cover`
+points for write/read/`WSTRB=0`. Since the AXI front end is not part of the
+`uvm/` APB testbench, it is compiled with `--assert` into the Verilator
+coverage sim (`make coverage`), where `sim/sim_main.cpp`'s stimulus exercises
+it — a protocol violation there fails the gate.
 
 | PyUVM (`tb/`)               | SystemVerilog UVM (`uvm/`)                       |
 |-----------------------------|-------------------------------------------------|
@@ -157,14 +167,14 @@ Everything runs from the repo root and degrades gracefully if a tool is absent.
 
 | Flow            | Command                | What it does                                                        |
 |-----------------|------------------------|--------------------------------------------------------------------|
-| Full regression | `make test`            | Eight isolated PyUVM tests: APB, AXI, protocol, and cross-bus traffic. |
+| Full regression | `make test`            | Nine isolated PyUVM tests: APB, AXI, protocol, and cross-bus traffic (directed + random). |
 | APB directed / random / walking | `make test-write-read` / `make test-random` / `make test-walking` | Native APB tests. |
 | AXI directed / random / walking | `make test-axi-write-read` / `make test-axi-random` / `make test-axi-walking` | AXI4-Lite tests with asynchronous PCLK/ACLK. |
 | AXI protocol    | `make test-axi-protocol` | Independently timed AW/W channels and `WSTRB=0` no-op write.      |
-| Cross-bus       | `make test-dual-bus`   | APB→AXI, AXI→APB, and overlapping independent writes.             |
-| Waves           | `make wave-dual`       | Dump the dual-bus test then open the AXI+APB GTKWave layout (`make wave-apb` and `make wave-axi` select focused views). |
+| Cross-bus       | `make test-dual-bus` / `make test-dual-bus-random` | Directed APB↔AXI coherence + overlapping writes; and a random read/write mix across both buses (≥20 transfers, both R&W). |
+| Waves           | `make wave-dual`       | Dump the dual-bus random test (the default wave stimulus) then open the AXI+APB GTKWave layout (`make wave-apb` and `make wave-axi` select focused views; `SEED=<n>` replays a run). |
 | Lint            | `make lint`            | `iverilog -Wall` and Verilator lint of the integrated AXI+APB RTL. |
-| Coverage        | `make coverage`        | Verilator C++ coverage for the standalone `apb_mem` core → `sim/coverage.info` (lcov); fails below `COV_MIN` (default 100%). |
+| Coverage        | `make coverage`        | Verilator `--coverage-line` of the whole `axi_apb_mem` subsystem → `sim/coverage.info` (lcov); fails below `COV_MIN` (default 100%). Also runs the `axi_sva` protocol assertions (`--assert`). |
 | Gate            | `make check`           | Lint then the full regression.                                    |
 | CI              | `make ci`              | Lint + regression + coverage as a single pass/fail gate.          |
 | SV UVM          | `make uvm`             | SystemVerilog UVM TB (VCS/Xcelium/Questa); skips cleanly if unlicensed. |
@@ -259,10 +269,11 @@ is converted into one PCLK-domain SETUP→ACCESS transfer.
 make coverage
 ```
 
-This builds the standalone `rtl/apb_mem.sv` core with Verilator `--coverage`,
-runs the C++ harness in `sim/sim_main.cpp`, exports lcov to
-`sim/coverage.info`, and enforces a line floor (`COV_MIN`, default 100%). Lower
-the bar for a quick look with
+This builds the whole `axi_apb_mem` subsystem (memory core + AXI4-Lite front
+end + arbiter/CDC) with Verilator `--coverage-line --assert`, runs the C++
+harness in `sim/sim_main.cpp` — which also exercises the bound `axi_sva`
+protocol assertions — exports lcov to `sim/coverage.info`, and enforces a line
+floor (`COV_MIN`, default 100%). Lower the bar for a quick look with
 `make coverage COV_MIN=90`.
 
 ### 6. Lint and the CI gate
