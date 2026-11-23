@@ -380,13 +380,23 @@ clean:
 	rm -rf $(LP_DIR)/sim_build $(LP_DIR)/__pycache__ $(LP_RESULTS) \
 		$(TB_DIR)/sim_build $(TB_DIR)/__pycache__ __pycache__ \
 		results.xml dump.fst dump.vcd \
-		$(COV_DIR) sim/coverage.info sim/coverage.dat sim/annotated
+		$(COV_DIR) sim/coverage.info sim/coverage.dat sim/annotated \
+		formal/*_prove formal/*_cover
 
 # Standard DV targets (DV_STANDARDS.md)
 .PHONY: stress formal
 stress: test-random
+
+# formal: SymbiYosys safety proof + reachability cover of the AXI4-Lite -> APB
+# FSM (formal/axi_lite_to_apb.sby; properties under `ifdef FORMAL in the RTL).
+# Needs SymbiYosys (sby) + yosys + an SMT solver (z3); degrades gracefully
+# (exit 0) when sby is absent, as the GitHub CI runner does not ship it.
+FORMAL_SBY ?= formal/axi_lite_to_apb.sby
 formal:
-	@echo "[FORMAL] n/a: no formal tier in this repo yet (see DV_STANDARDS.md)"
+	@command -v sby >/dev/null 2>&1 || { echo "[FORMAL] SymbiYosys (sby) not on PATH; skipping (install SymbiYosys + yosys + z3 to run it)"; exit 0; }
+	@echo "[FORMAL] SymbiYosys prove + cover on axi_lite_to_apb..."
+	cd $(dir $(FORMAL_SBY)) && sby -f $(notdir $(FORMAL_SBY))
+	@echo "[FORMAL] PASSED"
 
 # Standard DV target (DV_STANDARDS.md)
 .PHONY: sim

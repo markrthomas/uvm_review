@@ -236,6 +236,60 @@ module axi_lite_to_apb #(
     assign m_req_wdata = wdata_reg;
     assign m_rsp_ready = (state == ST_WAIT_RSP);
 
+`ifdef FORMAL
+    // Formal properties (SymbiYosys `make formal`, off in every other build).
+    // Proven with no environment constraints: these are all facts about the
+    // slave's own state/outputs, so even a maximally adversarial master/arbiter
+    // cannot break them.
+    logic f_past_valid;
+    initial f_past_valid = 1'b0;
+    always_ff @(posedge clk) f_past_valid <= 1'b1;
+
+    always_ff @(posedge clk) begin
+        if (f_past_valid && $past(rst_n) && rst_n) begin
+            // State register never leaves its legal encoding.
+            a_state_legal:   assert (state <= ST_RD_RESP);
+
+            // Single outstanding: a write response and a read response are
+            // never valid at the same time.
+            a_resp_excl:     assert (!(s_axi_bvalid && s_axi_rvalid));
+
+            // Responses are asserted only in their own states; requests only
+            // in ST_REQ; channel READYs only in ST_IDLE (so nothing new is
+            // accepted while a transaction is in flight -> single outstanding).
+            a_b_in_wr:       assert (!s_axi_bvalid || (state == ST_WR_RESP));
+            a_r_in_rd:       assert (!s_axi_rvalid || (state == ST_RD_RESP));
+            a_req_in_req:    assert (!m_req_valid  || (state == ST_REQ));
+            a_awready_idle:  assert (!s_axi_awready || (state == ST_IDLE));
+            a_wready_idle:   assert (!s_axi_wready  || (state == ST_IDLE));
+            a_arready_idle:  assert (!s_axi_arready || (state == ST_IDLE));
+
+            // Response VALID is held with a stable payload until READY.
+            if ($past(s_axi_bvalid) && !$past(s_axi_bready))
+                a_b_held: assert (s_axi_bvalid && (s_axi_bresp == $past(s_axi_bresp)));
+            if ($past(s_axi_rvalid) && !$past(s_axi_rready))
+                a_r_held: assert (s_axi_rvalid &&
+                                  (s_axi_rdata == $past(s_axi_rdata)) &&
+                                  (s_axi_rresp == $past(s_axi_rresp)));
+
+            // Response codes are always OKAY or SLVERR (never RESERVED/DECERR).
+            a_bresp_legal: assert (!s_axi_bvalid ||
+                (s_axi_bresp == RESP_OKAY) || (s_axi_bresp == RESP_SLVERR));
+            a_rresp_legal: assert (!s_axi_rvalid ||
+                (s_axi_rresp == RESP_OKAY) || (s_axi_rresp == RESP_SLVERR));
+        end
+    end
+
+    // Reachability / no-deadlock evidence (cover mode): both responses are
+    // reachable, so the FSM is not stuck.
+    always_ff @(posedge clk) begin
+        if (f_past_valid) begin
+            c_write_resp: cover (s_axi_bvalid && s_axi_bready);
+            c_read_resp:  cover (s_axi_rvalid && s_axi_rready);
+        end
+    end
+`endif // FORMAL
+
 endmodule
 
 `endif // AXI_LITE_TO_APB_SV

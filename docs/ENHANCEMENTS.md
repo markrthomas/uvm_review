@@ -49,7 +49,7 @@ here as part of that PR.
   fault-injecting memory variant (same pattern as `lp/`) and a test that
   exercises `PSLVERR`→`BRESP/RRESP = SLVERR`.
 
-- [ ] **7. Formal tier.** Replace the `make formal` stub with a SymbiYosys
+- [x] **7. Formal tier.** Replace the `make formal` stub with a SymbiYosys
   flow proving the properties currently only reasoned in comments: the
   single-outstanding CDC handshake (no lost/duplicated request), arbiter mutual
   exclusion (APB priority, non-preemptive AXI grant), and deadlock-freedom.

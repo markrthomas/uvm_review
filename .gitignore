@@ -39,3 +39,6 @@ uvm/novas.*
 uvm/verdi*
 /tb/random/runs/
 /docker/last-run-metrics.json
+# SymbiYosys work directories under formal/ — keep only the .sby runners
+formal/*
+!formal/*.sby
