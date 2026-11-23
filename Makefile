@@ -16,6 +16,10 @@ VERILATOR ?= verilator
 
 RTL       := rtl/apb_mem.sv
 RTL_ALL   := rtl/apb_mem.sv rtl/axi_lite_to_apb.sv rtl/axi_apb_mem.sv
+# AXI4-Lite protocol assertion checker, bound to axi_lite_to_apb and exercised
+# (with --assert) in the Verilator coverage sim. coverage_off internally so it
+# does not count toward the line-coverage floor.
+AXI_SVA   := uvm/axi_sva.sv
 TB_DIR    := tb
 TB_RESULTS := $(TB_DIR)/results.xml
 FST       := $(TB_DIR)/sim_build/axi_apb_mem.fst
@@ -337,7 +341,7 @@ coverage:
 	@set -e; \
 	command -v $(VERILATOR) >/dev/null 2>&1 || { echo "[COVERAGE] verilator not on PATH; skipping"; exit 0; }; \
 	rm -rf $(COV_DIR); \
-	$(VERILATOR) --coverage-line -cc $(RTL_ALL) --top-module axi_apb_mem \
+	$(VERILATOR) --coverage-line --assert -cc $(RTL_ALL) $(AXI_SVA) --top-module axi_apb_mem \
 		--Mdir $(COV_DIR) -Wall -Wno-DECLFILENAME -Wno-UNOPTFLAT; \
 	$(MAKE) -C $(COV_DIR) -f Vaxi_apb_mem.mk; \
 	g++ -DVM_COVERAGE=1 -o $(COV_DIR)/sim_cov \
