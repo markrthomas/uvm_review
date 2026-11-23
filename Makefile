@@ -325,18 +325,23 @@ regress: lint test-all lp
 ci: regress coverage
 	@echo "[CI] lint + regression + coverage PASSED"
 
-# coverage: Verilator --coverage build + run of the sim/sim_main.cpp harness;
-# emits sim/coverage.info (lcov) and enforces the COV_MIN line-coverage floor.
+# coverage: Verilator --coverage-line build of the FULL axi_apb_mem subsystem
+# (memory core + AXI4-Lite front end + arbiter/CDC) + run of the
+# sim/sim_main.cpp harness; emits sim/coverage.info (lcov) and enforces the
+# COV_MIN line-coverage floor. --coverage-line (not --coverage) keeps the metric
+# true line coverage: plain --coverage also flattens per-bit toggle points into
+# the lcov DA records, which would impose an unachievable 100%-toggle floor on
+# the tied-off AXI PROT inputs and the never-asserted SLVERR path.
 # Degrades gracefully (exit 0) when Verilator is not installed.
 coverage:
 	@set -e; \
 	command -v $(VERILATOR) >/dev/null 2>&1 || { echo "[COVERAGE] verilator not on PATH; skipping"; exit 0; }; \
 	rm -rf $(COV_DIR); \
-	$(VERILATOR) --coverage -cc $(RTL) --top-module apb_mem \
-		--Mdir $(COV_DIR) -Wall -Wno-DECLFILENAME; \
-	$(MAKE) -C $(COV_DIR) -f Vapb_mem.mk; \
+	$(VERILATOR) --coverage-line -cc $(RTL_ALL) --top-module axi_apb_mem \
+		--Mdir $(COV_DIR) -Wall -Wno-DECLFILENAME -Wno-UNOPTFLAT; \
+	$(MAKE) -C $(COV_DIR) -f Vaxi_apb_mem.mk; \
 	g++ -DVM_COVERAGE=1 -o $(COV_DIR)/sim_cov \
-		sim/sim_main.cpp $(COV_DIR)/Vapb_mem__ALL.a \
+		sim/sim_main.cpp $(COV_DIR)/Vaxi_apb_mem__ALL.a \
 		-I$(COV_DIR) -I$(VERILATOR_INC) -I$(VERILATOR_INC)/vltstd \
 		$(VERILATOR_CPP) -pthread -lm; \
 	( cd $(COV_DIR) && ./sim_cov ); \
