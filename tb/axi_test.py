@@ -10,6 +10,7 @@ from axi_bfm import AxiBfm
 from axi_components import AxiEnv
 from axi_seq import AxiRandomSeq, AxiWalkingSeq, AxiWriteReadSeq
 from axi_seq_item import ADDR_MASK, DATA_MASK
+from bus_scoreboard import RefMemModel
 
 
 class AxiBaseTest(uvm_test):
@@ -55,15 +56,22 @@ class DualBusTest(uvm_test):
         axi_bfm.start_bfms()
         apb_bfm.start_bfms()
 
+        # Cross-bus reads are scored against the same reference model the
+        # single-bus scoreboards use, so "what a read should return" has one
+        # definition across every environment.
+        model = RefMemModel()
+
         # Step 1: Write via APB, Read via AXI
         self.logger.info("=== Phase 1: Write via APB, Read via AXI ===")
         test_pairs_1 = [(0x0100, 0x42), (0x0200, 0x55), (0x0300, 0xAA), (0x0400, 0x12)]
         for addr, data in test_pairs_1:
             await apb_bfm.send_command(addr, True, data)
             await apb_bfm.get_result()
+            model.write(addr, data)
             await axi_bfm.send_command(addr, False, 0)
             rdata = await axi_bfm.get_result()
-            assert rdata == data, f"DualBus APB->AXI mismatch at 0x{addr:04X}: wrote 0x{data:02X}, read 0x{rdata:02X}"
+            assert model.check(addr, rdata), \
+                f"DualBus APB->AXI mismatch at 0x{addr:04X}: wrote 0x{data:02X}, read 0x{rdata:02X}"
             self.logger.info(f"APB WR -> AXI RD matched @0x{addr:04X} = 0x{data:02X}")
 
         # Step 2: Write via AXI, Read via APB
@@ -72,9 +80,11 @@ class DualBusTest(uvm_test):
         for addr, data in test_pairs_2:
             await axi_bfm.send_command(addr, True, data)
             await axi_bfm.get_result()
+            model.write(addr, data)
             await apb_bfm.send_command(addr, False, 0)
             rdata = await apb_bfm.get_result()
-            assert rdata == data, f"DualBus AXI->APB mismatch at 0x{addr:04X}: wrote 0x{data:02X}, read 0x{rdata:02X}"
+            assert model.check(addr, rdata), \
+                f"DualBus AXI->APB mismatch at 0x{addr:04X}: wrote 0x{data:02X}, read 0x{rdata:02X}"
             self.logger.info(f"AXI WR -> APB RD matched @0x{addr:04X} = 0x{data:02X}")
 
         # Step 3: issue independent writes together.  The AXI BFM owns both
@@ -89,12 +99,14 @@ class DualBusTest(uvm_test):
         await apb_bfm.get_result()
         axi_resp = await axi_bfm.get_result()
         assert axi_resp == 0, f"Concurrent AXI write returned BRESP={axi_resp}"
+        model.write(apb_addr, apb_data)
+        model.write(axi_addr, axi_data)
 
         await axi_bfm.send_command(apb_addr, False, 0)
-        assert await axi_bfm.get_result() == apb_data, (
+        assert model.check(apb_addr, await axi_bfm.get_result()), (
             "Concurrent APB write was not visible through AXI")
         await apb_bfm.send_command(axi_addr, False, 0)
-        assert await apb_bfm.get_result() == axi_data, (
+        assert model.check(axi_addr, await apb_bfm.get_result()), (
             "Concurrent AXI write was not visible through APB")
 
         self.logger.info("DualBusTest: ALL cross-bus checks passed!")
@@ -127,8 +139,8 @@ class DualBusRandomTest(uvm_test):
         apb_bfm.start_bfms()
 
         bfms = {"APB": apb_bfm, "AXI": axi_bfm}
-        mem = {}        # reference model: addr -> last byte written (0 if never)
-        written = []    # addresses written so far (reads bias toward these)
+        model = RefMemModel()   # the shared byte-memory reference model
+        written = []            # addresses written so far (reads bias toward these)
 
         num = max(self.MIN_TXNS, 2)
         # Guarantee the mix: seed one write and one read, randomise the rest,
@@ -145,7 +157,7 @@ class DualBusRandomTest(uvm_test):
                 data = random.randint(0, DATA_MASK)
                 await bfm.send_command(addr, True, data)
                 await bfm.get_result()
-                mem[addr] = data
+                model.write(addr, data)
                 written.append(addr)
                 n_wr += 1
                 self.logger.info(f"[{i}] {bus} WR @0x{addr:04X} = 0x{data:02X}")
@@ -158,10 +170,9 @@ class DualBusRandomTest(uvm_test):
                     addr = random.randint(0, ADDR_MASK)
                 await bfm.send_command(addr, False, 0)
                 rdata = await bfm.get_result()
-                expected = mem.get(addr, 0)
-                assert rdata == expected, (
+                assert model.check(addr, rdata), (
                     f"DualBusRandom {bus} RD @0x{addr:04X}: "
-                    f"expected 0x{expected:02X}, read 0x{rdata:02X}")
+                    f"expected 0x{model.expected(addr):02X}, read 0x{rdata:02X}")
                 n_rd += 1
                 self.logger.info(f"[{i}] {bus} RD @0x{addr:04X} = 0x{rdata:02X} (ok)")
 

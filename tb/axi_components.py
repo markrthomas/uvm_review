@@ -5,17 +5,15 @@ from pyuvm import (
     ConfigDB,
     uvm_agent,
     uvm_analysis_port,
-    uvm_component,
     uvm_driver,
     uvm_env,
-    uvm_get_port,
     uvm_monitor,
     uvm_sequencer,
-    uvm_tlm_analysis_fifo,
 )
 
 from axi_bfm import AxiBfm
 from axi_seq_item import AxiSeqItem
+from bus_scoreboard import BusScoreboard
 
 
 class AxiDriver(uvm_driver):
@@ -44,6 +42,11 @@ class AxiMonitor(uvm_monitor):
 
     async def run_phase(self):
         while True:
+            # The BFM associates each response with the most recently handshaked
+            # address/data on its channel (last_awaddr/last_araddr). That is
+            # exact only because this slave is single-outstanding (one request
+            # and response in flight at a time); it would mis-pair transfers if
+            # the design were ever made to pipeline multiple outstanding ops.
             addr, write, wdata, rdata, resp = await self.bfm.get_monitored()
             tr = AxiSeqItem("mon", addr=addr, data=wdata, write=write)
             tr.rdata = rdata
@@ -63,49 +66,10 @@ class AxiAgent(uvm_agent):
         self.driver.seq_item_port.connect(self.seqr.seq_item_export)
 
 
-class AxiScoreboard(uvm_component):
+class AxiScoreboard(BusScoreboard):
     """Reference byte memory; checks every AXI read against the last write."""
 
-    def build_phase(self):
-        self.fifo = uvm_tlm_analysis_fifo("fifo", self)
-        self.port = uvm_get_port("port", self)
-        self.model = {}
-        self.reads = 0
-        self.errors = 0
-
-    def connect_phase(self):
-        self.port.connect(self.fifo.get_export)
-
-    @property
-    def analysis_export(self):
-        return self.fifo.analysis_export
-
-    def process_transaction(self, tr):
-        if tr.write:
-            self.model[tr.addr] = tr.data
-        else:
-            self.reads += 1
-            expected = self.model.get(tr.addr, 0)
-            if tr.rdata != expected:
-                self.errors += 1
-                self.logger.error(
-                    f"MISMATCH @0x{tr.addr:04X}: "
-                    f"got 0x{tr.rdata:02X} exp 0x{expected:02X}")
-            else:
-                self.logger.info(f"MATCH {tr}")
-
-    async def run_phase(self):
-        while True:
-            tr = await self.port.get()
-            self.process_transaction(tr)
-
-    def check_phase(self):
-        while self.port.can_get():
-            _, tr = self.port.try_get()
-            self.process_transaction(tr)
-        self.logger.info(
-            f"AxiScoreboard: {self.reads} reads checked, {self.errors} errors")
-        assert self.errors == 0, f"{self.errors} scoreboard mismatch(es)"
+    tag = "AxiScoreboard"
 
 
 class AxiEnv(uvm_env):
