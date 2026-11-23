@@ -13,7 +13,7 @@ here as part of that PR.
 
 ## Order of work
 
-- [ ] **1. Seed reproducibility.** Expose `SEED=` in the cocotb flow
+- [x] **1. Seed reproducibility.** Expose `SEED=` in the cocotb flow
   (`COCOTB_RANDOM_SEED` passthrough in `tb/Makefile`, surfaced by the root
   `waves`/`test-*` targets) so a random run or a random default waveform can be
   replayed deterministically. Document `make waves SEED=…`.

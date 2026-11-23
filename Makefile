@@ -82,6 +82,7 @@ help:
 	@echo "    make wave-axi          # open GTKWave with dedicated AXI bus view (tb/axi_bus.gtkw)"
 	@echo "    make wave-dual         # open GTKWave with dual AXI + APB bus view (tb/dual_bus.gtkw)"
 	@echo "    make waves             # dump FST trace only (default: dual_bus_random_test; TEST=<name>, BUS=apb|axi|dual)"
+	@echo "    SEED=<n>               # pin cocotb's RANDOM_SEED on any test/wave target to replay a random run (e.g. make waves SEED=12345)"
 	@echo "    make waves-apb         # dump APB trace only"
 	@echo "    make waves-axi         # dump AXI trace only"
 	@echo "    make waves-dual        # dump dual-bus trace only"
@@ -129,7 +130,7 @@ help:
 #   2. Real pass/fail. cocotb's make flow exits 0 here even when a test fails, so
 #      we check results.xml for a <failure>/<error> element and exit non-zero.
 define run_one_test
-@$(MAKE) -C $(TB_DIR) TESTCASE=$(1)
+@$(MAKE) -C $(TB_DIR) TESTCASE=$(1) $(if $(SEED),SEED=$(SEED),)
 @test -f $(TB_RESULTS) || { echo "[TEST] $(1): no results.xml (sim did not run)"; exit 1; }
 @if grep -Eq "<failure|<error" $(TB_RESULTS); then echo "[TEST] $(1) FAILED (see log above)"; exit 1; fi
 @echo "[TEST] $(1) passed"
@@ -198,8 +199,8 @@ waves:
 	@if [ "$(WAVE_TEST)" != "all" ] && ! echo " $(WAVE_TESTS) " | grep -q " $(WAVE_TEST) "; then \
 		echo "[WAVES] unknown TEST='$(WAVE_TEST)' — choose one of: $(WAVE_TESTS) all"; exit 1; fi
 	rm -rf $(TB_DIR)/sim_build
-	$(MAKE) -C $(TB_DIR) WAVES=1 $(if $(filter all,$(WAVE_TEST)),,TESTCASE=$(WAVE_TEST))
-	@echo "[WAVES] wrote $(FST) (test: $(WAVE_TEST))"
+	$(MAKE) -C $(TB_DIR) WAVES=1 $(if $(filter all,$(WAVE_TEST)),,TESTCASE=$(WAVE_TEST)) $(if $(SEED),SEED=$(SEED),)
+	@echo "[WAVES] wrote $(FST) (test: $(WAVE_TEST)$(if $(SEED), seed: $(SEED),))"
 
 waves-apb:
 	@$(MAKE) --no-print-directory waves BUS=apb $(if $(TEST),TEST=$(TEST),)
@@ -215,8 +216,8 @@ wave:
 		echo "[WAVE] gtkwave not on PATH — install GTKWave to view waveforms"; \
 		exit 0; \
 	fi; \
-	$(MAKE) --no-print-directory waves BUS=$(BUS) $(if $(TEST),TEST=$(TEST),); \
-	echo "[WAVE] opening $(FST) in GTKWave (layout: $(GTKW_SEL)) — test: $(WAVE_TEST)"; \
+	$(MAKE) --no-print-directory waves BUS=$(BUS) $(if $(TEST),TEST=$(TEST),) $(if $(SEED),SEED=$(SEED),); \
+	echo "[WAVE] opening $(FST) in GTKWave (layout: $(GTKW_SEL)) — test: $(WAVE_TEST)$(if $(SEED), seed: $(SEED),)"; \
 	exec gtkwave -S $(TB_DIR)/zoom_full.tcl $(FST) $(GTKW_SEL)
 
 wave-apb:

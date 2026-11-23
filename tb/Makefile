@@ -44,4 +44,12 @@ ifdef TESTCASE
 export TESTCASE
 endif
 
+# Reproducible randomisation: `make ... SEED=<n>` pins cocotb's RANDOM_SEED so a
+# random run (or the random default waveform) replays byte-for-byte. Left unset,
+# cocotb picks a seed and logs it ("Seeding Python random module with supplied
+# seed <n>"), which can be fed straight back via SEED=<n> to reproduce the run.
+ifdef SEED
+export RANDOM_SEED := $(SEED)
+endif
+
 include $(shell cocotb-config --makefiles)/Makefile.sim
