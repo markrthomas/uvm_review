@@ -70,6 +70,19 @@ module axi_lite_to_apb #(
     localparam logic [1:0] RESP_OKAY   = 2'b00;
     localparam logic [1:0] RESP_SLVERR = 2'b10;
 
+    // This bridge collapses WSTRB to a single write-enable (|s_axi_wstrb below),
+    // so it is correct only for a byte-wide data path; a wider DATA_WIDTH would
+    // silently drop per-byte write-strobe granularity. Fail elaboration on
+    // misuse. Scoped to Verilator (run by `make lint` in CI, which enforces it):
+    // Icarus 11 — the pinned cocotb simulator — rejects a bare elaboration
+    // $error as a module item, so it must not see this. The wrapper propagates
+    // its DATA_WIDTH here, so a misused axi_apb_mem width trips this guard too.
+`ifdef VERILATOR
+    if (DATA_WIDTH != 8) begin : gen_unsupported_data_width
+        $error("axi_lite_to_apb: only DATA_WIDTH=8 is supported (WSTRB is collapsed to a single write-enable)");
+    end
+`endif
+
     // AXI protection attributes do not alter this simple memory's access
     // policy. DATA_WIDTH is byte-wide by default, so WSTRB[0] controls the
     // sole byte lane rather than being ignored.
