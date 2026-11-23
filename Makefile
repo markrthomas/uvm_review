@@ -53,6 +53,13 @@ COV_DIR := sim/obj_dir_cov
 # Minimum line-coverage floor enforced by `make coverage`.
 COV_MIN ?= 100
 
+# Random regression (Swarm B). tb/random/rr.py drives the existing self-checking
+# random tests across a seed sweep; see tb/random/README.md.
+RR_DIR ?= tb/random
+RR     ?= python3 $(RR_DIR)/rr.py
+N      ?= 10
+JOBS   ?= 1
+
 .PHONY: default help \
 	test test-all test-write-read test-random test-walking \
 	test-axi-write-read test-axi-random test-axi-walking test-axi-protocol test-dual-bus test-dual-bus-random test-axi-slverr \
@@ -109,14 +116,20 @@ help:
 	@echo "    RAILWAY_PROJECT=verilator-uvm RAILWAY_SERVICE=verilator-uvm"
 	@echo "    UVM_IMAGE=name:tag  DOCKER=podman  RAILWAY=railway"
 	@echo ""
+	@echo "  Random regression (Swarm B; tb/random/):"
+	@echo "    make rr-build          # compile the cocotb sim once (the canonical build the jobs reuse)"
+	@echo "    make rr N=<n> JOBS=<p> [SEED=<base>]  # run n seeded jobs (p parallel); results.jsonl + summary; nonzero iff any FAIL"
+	@echo "    make rr-triage RUN=<dir>  # cluster a run's FAILs by signature (count + repro per cluster)"
+	@echo "    make rr-replay         # rerun tb/random/corpus.json; 'fixed' entries must PASS (CI gate)"
+	@echo ""
 	@echo "  Gates:"
 	@echo "    make lint              # iverilog -Wall compile check + Verilator RTL lint"
 	@echo "    make coverage          # Verilator C++ coverage -> sim/coverage.info (fails below COV_MIN=$(COV_MIN)% lines)"
-	@echo "    make formal            # formal tier (n/a stub if none)"
-	@echo "    make stress            # stress / randomized simulation (n/a stub if none)"
+	@echo "    make formal            # SymbiYosys proof of the AXI FSM (skips if sby absent)"
+	@echo "    make stress            # stress / randomized simulation (alias: test-random)"
 	@echo "    make check             # lint then test-all"
 	@echo "    make regress           # lint + full regression (CI-style pass/fail)"
-	@echo "    make ci                # regress + coverage"
+	@echo "    make ci                # regress + coverage + rr-replay"
 	@echo ""
 	@echo "  Other: make clean"
 	@echo "  swarm      Swarm A (verification) via Claude Code; swarm-rr = Swarm B (random regression); swarm-dry = show the command"
@@ -336,8 +349,8 @@ check: lint test-all
 regress: lint test-all lp
 	@echo "[REGRESS] lint + PyUVM regression + low-power (UPF) demo PASSED"
 
-ci: regress coverage
-	@echo "[CI] lint + regression + coverage PASSED"
+ci: regress coverage rr-replay
+	@echo "[CI] lint + regression + coverage + rr-replay PASSED"
 
 # coverage: Verilator --coverage-line build of the FULL axi_apb_mem subsystem
 # (memory core + AXI4-Lite front end + arbiter/CDC) + run of the
@@ -397,6 +410,21 @@ formal:
 	@echo "[FORMAL] SymbiYosys prove + cover on axi_lite_to_apb..."
 	cd $(dir $(FORMAL_SBY)) && sby -f $(notdir $(FORMAL_SBY))
 	@echo "[FORMAL] PASSED"
+
+# --- random regression (Swarm B; tb/random/rr.py) ---------------------------
+.PHONY: rr-build rr rr-triage rr-replay
+rr-build:
+	$(RR) build
+
+rr:
+	$(RR) run --n $(N) --jobs $(JOBS) $(if $(SEED),--seed $(SEED),)
+
+rr-triage:
+	@test -n "$(RUN)" || { echo "usage: make rr-triage RUN=<run dir>"; exit 2; }
+	$(RR) triage --run $(RUN)
+
+rr-replay:
+	$(RR) replay
 
 # Standard DV target (DV_STANDARDS.md)
 .PHONY: sim
