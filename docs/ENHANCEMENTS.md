@@ -44,7 +44,7 @@ here as part of that PR.
   double-drain, and document the monitor's single-outstanding addr/data
   association.
 
-- [ ] **6. Error-path (SLVERR) coverage.** The OKAY→SLVERR mapping in the AXI
+- [x] **6. Error-path (SLVERR) coverage.** The OKAY→SLVERR mapping in the AXI
   front end is currently dead/untested (the memory never errors). Add a
   fault-injecting memory variant (same pattern as `lp/`) and a test that
   exercises `PSLVERR`→`BRESP/RRESP = SLVERR`.
