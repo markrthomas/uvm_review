@@ -18,7 +18,7 @@ here as part of that PR.
   `waves`/`test-*` targets) so a random run or a random default waveform can be
   replayed deterministically. Document `make waves SEED=…`.
 
-- [ ] **2. Coverage covers the AXI bridge + wrapper.** `make coverage` today
+- [x] **2. Coverage covers the AXI bridge + wrapper.** `make coverage` today
   builds only `rtl/apb_mem.sv` (`--top-module apb_mem`) and enforces a 100%
   floor on the trivial memory core, leaving `axi_lite_to_apb.sv` and
   `axi_apb_mem.sv` (the FSM, CDC handshake and arbiter) unmeasured. Extend the

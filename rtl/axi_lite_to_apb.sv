@@ -194,7 +194,12 @@ module axi_lite_to_apb #(
                 if (s_axi_rready)
                     next_state = ST_IDLE;
             end
+            // All five states are enumerated above; this default is defensive
+            // and unreachable, so waive it rather than hold line coverage below
+            // 100% on dead code (cf. the PSLVERR tie-off waiver in apb_mem.sv).
+            // verilator coverage_off
             default: next_state = ST_IDLE;
+            // verilator coverage_on
         endcase
     end
 
